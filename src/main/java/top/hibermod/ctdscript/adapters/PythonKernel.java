@@ -42,6 +42,11 @@ public final class PythonKernel implements DispatchKernel {
     private int totalFailures;
     private boolean disabled;
 
+    /** 执行耗时统计（p50/p99/max）。tick 预算 50ms，脚本目标 15ms。 */
+    private final top.hibermod.ctdscript.ScriptStats stats =
+        new top.hibermod.ctdscript.ScriptStats(512);
+    private static final long BUDGET_NANOS = 15_000_000L;
+
     public PythonKernel(ResourceLocation id, Value script) {
         this.id = id;
         this.script = script;
@@ -87,6 +92,7 @@ public final class PythonKernel implements DispatchKernel {
     public void onFrame(FrameContext in, DispatchFrame out) {
         if (disabled) return;                  // 已禁用：零指令 = 退回 Create 原生
 
+        long start = System.nanoTime();
         try {
             FrameOutput fo = new FrameOutput(out, env);
             onFrame.executeVoid(new FrameInput(in), fo);
@@ -110,7 +116,14 @@ public final class PythonKernel implements DispatchKernel {
                     + "trains fall back to vanilla Create behaviour", id, consecutiveFailures);
             }
             // 本帧没有任何指令
+        } finally {
+            stats.record(System.nanoTime() - start, BUDGET_NANOS);
         }
+    }
+
+    /** 执行耗时统计。 */
+    public top.hibermod.ctdscript.ScriptStats stats() {
+        return stats;
     }
 
     /** 是否已被自动禁用。 */

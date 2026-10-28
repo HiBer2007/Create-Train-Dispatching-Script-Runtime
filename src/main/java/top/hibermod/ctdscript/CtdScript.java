@@ -157,6 +157,23 @@ public final class CtdScript {
                     ctx.getSource().sendSuccess(
                         () -> Component.literal(r == null ? "no load report" : r.summary()), false);
                     return r == null ? 0 : r.ok();
+                }))
+                .then(Commands.literal("stats").executes(ctx -> {
+                    int n = 0;
+                    for (var id : top.hibermod.ctdapi.DispatchKernels.registeredIds()) {
+                        var k = top.hibermod.ctdapi.DispatchKernels.create(id).orElse(null);
+                        if (k instanceof top.hibermod.ctdscript.adapters.PythonKernel pk) {
+                            String line = id + "  " + pk.stats().summary()
+                                + (pk.disabled() ? "  [DISABLED]" : "");
+                            ctx.getSource().sendSuccess(() -> Component.literal("  " + line), false);
+                            n++;
+                        }
+                    }
+                    if (n == 0) {
+                        ctx.getSource().sendSuccess(
+                            () -> Component.literal("no script kernels registered"), false);
+                    }
+                    return n;
                 }));
 
         event.getDispatcher().register(root);

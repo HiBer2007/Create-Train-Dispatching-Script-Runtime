@@ -24,6 +24,7 @@ public final class FrameInput {
     private final FrameContext ctx;
     private final List<TrainFacade> trains = new ArrayList<>();
     private final List<List<String>> signals = new ArrayList<>();
+    private final List<List<String>> switches = new ArrayList<>();
 
     public FrameInput(FrameContext ctx) {
         this.ctx = ctx;
@@ -38,6 +39,14 @@ public final class FrameInput {
                 s.signalId().toString(),
                 s.side().name(),
                 s.aspectId() == null ? "" : s.aspectId().toString()));
+        }
+
+        for (FrameContext.SwitchState s : ctx.switchStates()) {
+            switches.add(List.of(
+                s.node().encode(),
+                s.lockedBranch() == null ? "" : s.lockedBranch().encode(),
+                Long.toString(s.holder()),
+                Boolean.toString(s.contested())));
         }
     }
 
@@ -98,5 +107,34 @@ public final class FrameInput {
         return top.hibermod.ctdapi.signal.SignalRegistries.aspect(id)
             .map(a -> a.category() == top.hibermod.ctdapi.signal.Aspect.Category.STOP)
             .orElse(false);
+    }
+
+    /**
+     * 全部岔口的当前锁闭状态，每项 {@code [node, lockedBranch, holder, contested]}。
+     *
+     * <p>节点与边用的是 {@link top.hibermod.ctdapi.Rail.NodeId#encode()} 的字符串形式；
+     * {@code lockedBranch} 为空串表示未锁。
+     */
+    @HostAccess.Export
+    public List<List<String>> switches() {
+        return switches;
+    }
+
+    /** 某岔口当前锁定的股道（编码字符串）；未锁返回空串。 */
+    @HostAccess.Export
+    public String locked_branch_of(String node) {
+        for (List<String> s : switches) {
+            if (s.get(0).equals(node)) return s.get(1);
+        }
+        return "";
+    }
+
+    /** 某岔口是否被多车竞争。 */
+    @HostAccess.Export
+    public boolean switch_contested(String node) {
+        for (List<String> s : switches) {
+            if (s.get(0).equals(node)) return Boolean.parseBoolean(s.get(3));
+        }
+        return false;
     }
 }

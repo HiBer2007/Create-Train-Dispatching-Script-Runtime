@@ -81,4 +81,22 @@ tasks.register('kernelAtoBridgeTest', JavaExec) {
     systemProperty 'polyglot.engine.WarnInterpreterOnly', 'false'
 }
 
+tasks.register('railCodecTest', JavaExec) {
+    group = 'verification'
+    description = 'A1 验收：Rail.NodeId / EdgeId 字符串编解码'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'top.hibermod.ctdscript.tools.RailCodecTest'
+    jvmArgs = ['--enable-native-access=ALL-UNNAMED']
+    systemProperty 'polyglot.engine.WarnInterpreterOnly', 'false'
+}
+
+tasks.register('deviceSwitchBridgeTest', JavaExec) {
+    group = 'verification'
+    description = 'A8 验收：岔口状态 / 锁岔 / 设备 / 能源 / 补给指令'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'top.hibermod.ctdscript.tools.DeviceSwitchBridgeTest'
+    jvmArgs = ['--enable-native-access=ALL-UNNAMED']
+    systemProperty 'polyglot.engine.WarnInterpreterOnly', 'false'
+}
+
 tasks.named('build') { dependsOn 'graalpySmokeTest' }

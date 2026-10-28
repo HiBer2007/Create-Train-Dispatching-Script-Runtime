@@ -9,6 +9,7 @@ import net.minecraft.resources.ResourceLocation;
 import top.hibermod.ctdapi.Command;
 import top.hibermod.ctdapi.DispatchFrame;
 import top.hibermod.ctdapi.KernelEnv;
+import top.hibermod.ctdapi.Rail;
 import top.hibermod.ctdapi.Topology;
 
 /**
@@ -94,6 +95,98 @@ public final class FrameOutput {
         frame.aspect(new Command.AspectCommand(id, s, aspect));
     }
 
+    // ── 岔口 ──────────────────────────────────────────────────────────────
+
+    /**
+     * 锁定某个岔口的某条股道。
+     *
+     * @param node       岔心节点（{@code Rail.NodeId#encode()} 的形式）
+     * @param branch     期望开通的股道边（{@code Rail.EdgeId#encode()} 的形式）
+     * @param holder     持锁者标识（进路 id 之类），用于冲突检测
+     */
+    @HostAccess.Export
+    public void lock_switch(String node, String branch, long holder) {
+        Rail.NodeId n = Rail.NodeId.tryDecode(node);
+        Rail.EdgeId b = Rail.EdgeId.tryDecode(branch);
+        if (n == null || b == null) {
+            dropped++;
+            env.log("warn", "ctd-script: bad switch ids '{}' / '{}'", node, branch);
+            return;
+        }
+        frame.switchLock(new Command.SwitchCommand(n, Topology.SwitchPosition.UNKNOWN, b, holder));
+    }
+
+    /** 解除某个岔口的锁闭。 */
+    @HostAccess.Export
+    public void unlock_switch(String node) {
+        Rail.NodeId n = Rail.NodeId.tryDecode(node);
+        if (n == null) {
+            dropped++;
+            env.log("warn", "ctd-script: bad switch node '{}'", node);
+            return;
+        }
+        frame.switchLock(new Command.SwitchCommand(n, Topology.SwitchPosition.UNKNOWN, null, 0L));
+    }
+
+    // ── 设备与能源 ────────────────────────────────────────────────────────
+
+    /**
+     * 给一台设备下指令。{@code payload} 的结构由设备实现解释，桥接层不解析。
+     */
+    @HostAccess.Export
+    public void device(String deviceId, String payloadJson) {
+        UUID id = uuid(deviceId);
+        if (id == null) {
+            dropped++;
+            env.log("warn", "ctd-script: bad device id '{}'", deviceId);
+            return;
+        }
+        net.minecraft.nbt.CompoundTag tag = new net.minecraft.nbt.CompoundTag();
+        if (payloadJson != null && !payloadJson.isBlank()) {
+            tag.putString("json", payloadJson);
+        }
+        frame.device(new Command.DeviceCommand(id, tag, 0L));
+    }
+
+    /**
+     * 给能源联动方下指令（升弓、切供电、加注…）。
+     *
+     * <p>{@code payload} 原样透传，API 不解释它的结构。
+     */
+    @HostAccess.Export
+    public void energy(String trainId, String providerId, String payloadJson) {
+        UUID id = uuid(trainId);
+        ResourceLocation provider = ResourceLocation.tryParse(providerId);
+        if (id == null || provider == null) {
+            dropped++;
+            env.log("warn", "ctd-script: bad energy target '{}' / '{}'", trainId, providerId);
+            return;
+        }
+        net.minecraft.nbt.CompoundTag tag = new net.minecraft.nbt.CompoundTag();
+        if (payloadJson != null && !payloadJson.isBlank()) {
+            tag.putString("json", payloadJson);
+        }
+        frame.energy(new Command.EnergyCommand(id, provider, tag, 0L));
+    }
+
+    /**
+     * 请求一次地面补给（加油 / 充电 / 上水）。
+     *
+     * @param deviceId 目标设备；传空串表示让宿主就近挑一个
+     */
+    @HostAccess.Export
+    public void service(String trainId, String serviceId, String deviceId) {
+        UUID id = uuid(trainId);
+        ResourceLocation service = ResourceLocation.tryParse(serviceId);
+        if (id == null || service == null) {
+            dropped++;
+            env.log("warn", "ctd-script: bad service target '{}' / '{}'", trainId, serviceId);
+            return;
+        }
+        UUID device = (deviceId == null || deviceId.isBlank()) ? null : uuid(deviceId);
+        frame.service(new Command.ServiceCommand(id, device, service,
+            new net.minecraft.nbt.CompoundTag(), 0L));
+    }
     // ── 杂项 ──────────────────────────────────────────────────────────────
 
     /**

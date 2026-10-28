@@ -48,6 +48,14 @@ public final class ScriptLoader {
         }
     }
 
+    /** 路径里含 {@code disabled} 目录段的脚本不加载。 */
+    private static boolean isDisabled(Path file) {
+        for (Path part : file) {
+            if ("disabled".equalsIgnoreCase(part.toString())) return true;
+        }
+        return false;
+    }
+
     /** 全量加载。单个脚本失败不影响其它脚本（但失败的注册不会落库）。 */
     public Report loadAll() {
         return loadAll(List.of(ORDER));
@@ -67,6 +75,8 @@ public final class ScriptLoader {
             try (Stream<Path> s = Files.walk(p)) {
                 s.filter(Files::isRegularFile)
                     .filter(f -> f.getFileName().toString().endsWith(".py"))
+                    // disabled/ 下的一律跳过：临时停用一个脚本不该靠删文件
+                    .filter(f -> !isDisabled(f))
                     .sorted()
                     .forEach(files::add);
             } catch (IOException e) {
