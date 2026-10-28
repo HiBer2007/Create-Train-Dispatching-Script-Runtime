@@ -87,7 +87,7 @@ public final class CtdScript {
             }
             runtime = new ScriptRuntime();
             lastReport = new ScriptLoader(runtime, scriptRoot)
-                .loadAll(java.util.List.of("kernel", "ato"));
+                .loadAll(ScriptLoader.ALGORITHM_DIRS);
             System.out.println("[ctdscript] reloaded: " + lastReport.summary());
             return lastReport;
         } catch (Throwable t) {

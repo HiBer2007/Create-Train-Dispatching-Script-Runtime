@@ -32,6 +32,7 @@ public final class TimetableApi {
     @HostAccess.Export
     public String registerService(String namespace, String path, String code, String lineName,
                                   String signalSystemId, String speedClassId, int priority) {
+        top.hibermod.ctdscript.ScriptMode.requireStartup("TimetableApi");
         Service.Builder b = Service.builder(ResourceLocation.fromNamespaceAndPath(namespace, path))
             .code(code)
             .signalSystem(ResourceLocation.parse(signalSystemId))

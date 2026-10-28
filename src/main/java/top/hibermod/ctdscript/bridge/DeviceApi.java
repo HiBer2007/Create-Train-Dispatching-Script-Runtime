@@ -35,6 +35,7 @@ public final class DeviceApi {
     @HostAccess.Export
     public String registerType(String namespace, String path, String displayName, String kind,
                                String[] capabilities, boolean commandable, String[] signalSystems) {
+        top.hibermod.ctdscript.ScriptMode.requireStartup("DeviceApi");
         Devices.Kind k = "onboard".equalsIgnoreCase(kind) ? Devices.Kind.ONBOARD : Devices.Kind.GROUND;
 
         Set<String> caps = new LinkedHashSet<>();

@@ -151,13 +151,35 @@ F（收尾）              ← 必须
 
 ---
 
+### 阶段 G — 运营身份与「脚本时刻表」物品
+
+| # | 任务 | 验收 |
+|---|---|---|
+| G1 | API：`operation` 包（UnitNumber / UnitSet / Run / Assignment / Assignments） | ✅ 已实现 |
+| G2 | `DispatchFrame#assign`（default 方法，不强制宿主支持） | ✅ 已实现 |
+| G3 | Python 桥 `ctd.operation` | ✅ `operationBridgeTest` 6 项通过 |
+| G4 | 宿主把 `assign` 落到 Create：改 `ScheduleRuntime` / 触发自动出库 | 未做 |
+| G5 | **新物品「脚本时刻表」**：在物品里指定某个脚本调度，放到列车上即绑定 | 未做 |
+| G6 | 车辆编号与 `Train.name` 的绑定规则（谁负责写、冲突怎么办） | 未做 |
+
+**加载时机划分**（已实现并强制）：
+
+| 目录 | 阶段 | 内容 |
+|---|---|---|
+| `signal/` `device/` `timetable/` | **启动，不可热重载** | 信号与灯位逻辑、地面/车载设备类型、交路 |
+| `kernel/` `ato/` | **可热重载** | 调度算法、自动驾驶算法 |
+
+重载阶段调用定义类注册会直接抛异常（`loadPhaseTest` 3 项验收）。
+
+---
+
 ## 6. 进度表
 
 | 阶段 | 状态 | 备注 |
 |---|---|---|
 | A | ✅ **完成** | A1–A8 全部实现并验收：`railCodecTest` 10 项、`deviceSwitchBridgeTest` 13 项 |
 | B | 🟡 部分 | 已做：watchdog、连续失败禁用、`/ctd reload`（kernel/ato）。待做：全量重载、回滚、统计 |
-| C | 🟡 进行中 | C1：骨架已建；`dispatch/` 三个纯 API 类**已用 javac 单独验证通过**。**阻塞**：Create jar 下载速度 ~0.02 MB/s（见下） |
+| C | 🟡 进行中 | 代码已写到 C3/C8：`dispatch/`×3、`topology/`×3、`save/`×1、`mixin/`×1。其中 5 个纯 API/MC 类**已 javac 验证通过**；Create 侧待 jar。**阻塞**：Create jar 18.23 MB，下载 ~0.03 MB/s |
 | D | ⏳ | 未开始 |
 | E | ⏳ | 未开始 |
 | F | ⏳ | 未开始 |

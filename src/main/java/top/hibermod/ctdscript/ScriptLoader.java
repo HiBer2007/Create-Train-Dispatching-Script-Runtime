@@ -24,7 +24,15 @@ import java.util.stream.Stream;
 public final class ScriptLoader {
 
     /** 执行顺序固定。 */
-    private static final String[] ORDER = { "signal", "device", "timetable", "kernel", "ato" };
+    /** 定义类：启动加载，不可热重载。 */
+    public static final java.util.List<String> DEFINITION_DIRS = List.of("signal", "device", "timetable");
+
+    /** 算法类：可热重载。 */
+    public static final java.util.List<String> ALGORITHM_DIRS = List.of("kernel", "ato");
+
+    /** 完整加载顺序：定义先行，算法依赖定义的 id。 */
+    private static final java.util.List<String> ORDER =
+        java.util.stream.Stream.concat(DEFINITION_DIRS.stream(), ALGORITHM_DIRS.stream()).toList();
 
     private final ScriptRuntime runtime;
     private final Path root;
@@ -58,7 +66,8 @@ public final class ScriptLoader {
 
     /** 全量加载。单个脚本失败不影响其它脚本（但失败的注册不会落库）。 */
     public Report loadAll() {
-        return loadAll(List.of(ORDER));
+        ScriptMode.enter(ScriptMode.Phase.STARTUP);
+        return loadAll(ORDER);
     }
 
     /**
@@ -68,6 +77,10 @@ public final class ScriptLoader {
      * 其它注册表（信号 / 设备 / 交路）一旦冻结就无法增量修改。
      */
     public Report loadAll(List<String> dirs) {
+        // 只要这次加载里含定义类目录，就必须仍是启动阶段；否则内核脚本
+        // 会在重载时试图注册信号制度，而那是被守卫拒绝的。
+        boolean touchesDefinitions = dirs.stream().anyMatch(DEFINITION_DIRS::contains);
+        if (!touchesDefinitions) ScriptMode.enter(ScriptMode.Phase.RELOAD);
         List<Path> files = new ArrayList<>();
         for (String dir : dirs) {
             Path p = root.resolve(dir);

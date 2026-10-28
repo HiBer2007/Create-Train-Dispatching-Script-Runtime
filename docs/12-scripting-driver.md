@@ -321,7 +321,7 @@ ato.register("mymod", "simple_ato", "ctdapi:mainline_4", SimpleAto())
 
 ---
 
-## 7. 加载时机
+## 7. 加载顺序
 
 必须严格对齐 API 的生命周期：
 
@@ -513,3 +513,39 @@ remove(id)             // 注销
 
 **没有新增任何契约。** 这是整个方案成立的根本原因：
 API 从设计之初就是开放注册表，脚本层只是换了个注册的写法。
+
+---
+
+## 14. 加载时机：定义 vs 算法（强制）
+
+判据不是「改起来方不方便」，而是**这东西有没有被别处引用**。
+
+| 目录 | 阶段 | 内容 | 为什么 |
+|---|---|---|---|
+| `signal/` | **启动** | 信号制度、机型、灯位、语义映射 | 设备、内核、HUD 全按 id 引用它；换掉等于换规则，运行中的车会按旧规则决策 |
+| `device/` | **启动** | 地面设备、车载设备类型 | 设备实例已绑在轨道边点上，类型换了实例变孤儿 |
+| `timetable/` | **启动** | 交路、停站表、速度等级 | 车次与运行图按 id 引用交路 |
+| `kernel/` | **可热重载** | 调度算法：往哪走、怎么让行 | 无长期引用，换实现只是换策略 |
+| `ato/` | **可热重载** | 自动驾驶算法：加减速曲线 | 每帧重算 |
+
+**强制手段**：重载阶段调用定义类注册会**直接抛异常**，不静默忽略。
+静默忽略会让作者以为改了、实际没生效——这种问题最难查。
+
+```
+cannot register signal system during hot reload: definitions
+(signal systems, device types, services) are startup-only.
+Move this script into kernel/ or ato/ if it is an algorithm,
+or restart the server if it really is a definition.
+```
+
+验收：`./gradlew loadPhaseTest`
+```
+ok   启动阶段允许注册信号制度
+ok   重载阶段被拒且给出可操作提示
+ok   重载阶段允许注册内核
+```
+
+### 12.1 边界情况
+
+- 同一份脚本里既注册制度又注册内核 → 整份按启动阶段处理，重载时**整份跳过**并报错。
+- 想只改算法又不想重启 → 把算法单独放 `kernel/`，别和定义混在一个文件里。

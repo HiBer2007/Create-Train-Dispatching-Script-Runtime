@@ -95,6 +95,7 @@ public final class SignalApi {
     @HostAccess.Export
     public void registerAspect(String namespace, String path, String displayName,
                                double speedFraction, String category) {
+        top.hibermod.ctdscript.ScriptMode.requireStartup("SignalApi");
         Aspect.Category cat = Aspect.Category.valueOf(category.toUpperCase(java.util.Locale.ROOT));
         SignalRegistries.registerAspect(
             new Aspect(rl(namespace, path), Component.literal(displayName), speedFraction, cat));
@@ -149,6 +150,7 @@ public final class SignalApi {
         /** 落库。这一步之前对象只是描述。 */
         @HostAccess.Export
         public String register() {
+        top.hibermod.ctdscript.ScriptMode.requireStartup("SignalApi");
             SignalSystem.Builder b = SignalSystem.builder(id).name(Component.literal(displayName));
             if (!palette.isEmpty()) b.palette(palette.toArray(new LampColor[0]));
             aspects.forEach(b::aspectId);
@@ -201,6 +203,7 @@ public final class SignalApi {
 
         @HostAccess.Export
         public String register() {
+        top.hibermod.ctdscript.ScriptMode.requireStartup("SignalApi");
             SignalType.Builder b = SignalType.builder(idOrigin)
                 .system(systemId)
                 .name(Component.literal(idOrigin.getPath()))

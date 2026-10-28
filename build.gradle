@@ -99,4 +99,22 @@ tasks.register('deviceSwitchBridgeTest', JavaExec) {
     systemProperty 'polyglot.engine.WarnInterpreterOnly', 'false'
 }
 
+tasks.register('loadPhaseTest', JavaExec) {
+    group = 'verification'
+    description = 'B 验收：定义类只在启动期可注册，算法类可热重载'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'top.hibermod.ctdscript.tools.LoadPhaseTest'
+    jvmArgs = ['--enable-native-access=ALL-UNNAMED']
+    systemProperty 'polyglot.engine.WarnInterpreterOnly', 'false'
+}
+
+tasks.register('operationBridgeTest', JavaExec) {
+    group = 'verification'
+    description = '运营身份验收：车组开行车次 + 改派覆盖'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'top.hibermod.ctdscript.tools.OperationBridgeTest'
+    jvmArgs = ['--enable-native-access=ALL-UNNAMED']
+    systemProperty 'polyglot.engine.WarnInterpreterOnly', 'false'
+}
+
 tasks.named('build') { dependsOn 'graalpySmokeTest' }
