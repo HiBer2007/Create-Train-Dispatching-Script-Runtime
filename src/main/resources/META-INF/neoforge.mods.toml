@@ -5,7 +5,7 @@ license = "LGPL-3.0-or-later"
 [[mods]]
 modId = "ctdscript"
 version = "${file.jarVersion}"
-displayName = "CTD Script Driver"
+displayName = "Create Train Dispatching Script Runtime"
 authors = "HiBer_2007"
 description = '''
 GraalPy scripting driver for the Create Train Dispatching API.

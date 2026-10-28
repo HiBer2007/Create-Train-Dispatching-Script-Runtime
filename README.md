@@ -1,4 +1,4 @@
-# ctd-script — GraalPy 脚本驱动
+# Create Train Dispatching Script Runtime
 
 把「注册信号制度 / 写调度内核 / 写 ATO」从 Java 变成 Python。
 
