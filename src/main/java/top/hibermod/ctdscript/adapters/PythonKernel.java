@@ -40,6 +40,7 @@ public final class PythonKernel implements DispatchKernel {
 
     private int consecutiveFailures;
     private int totalFailures;
+    private int totalDropped;
     private boolean disabled;
 
     /** 执行耗时统计（p50/p99/max）。tick 预算 50ms，脚本目标 15ms。 */
@@ -97,6 +98,17 @@ public final class PythonKernel implements DispatchKernel {
             FrameOutput fo = new FrameOutput(out, env);
             onFrame.executeVoid(new FrameInput(in), fo);
             consecutiveFailures = 0;
+
+            // 累计被丢弃的非法调用。FrameOutput 每帧新建，所以计数必须在这里累加，
+            // 否则脚本读到的永远是 0。这个数字是「我的脚本写错了参数」的唯一信号。
+            int droppedNow = fo.droppedCount();
+            if (droppedNow > 0) {
+                totalDropped += droppedNow;
+                if (totalDropped == droppedNow || totalDropped % 50 < droppedNow) {
+                    env.log("warn", "ctd-script: kernel {} has dropped {} command(s) "
+                        + "with bad arguments so far", id, totalDropped);
+                }
+            }
         } catch (Throwable t) {
             consecutiveFailures++;
             totalFailures++;
@@ -134,6 +146,11 @@ public final class PythonKernel implements DispatchKernel {
     /** 累计失败次数。 */
     public int totalFailures() {
         return totalFailures;
+    }
+
+    /** 被丢弃的非法调用总数（参数写错的信号）。 */
+    public int totalDropped() {
+        return totalDropped;
     }
 
     /** 连续失败次数，宿主可据此禁用脚本内核。 */

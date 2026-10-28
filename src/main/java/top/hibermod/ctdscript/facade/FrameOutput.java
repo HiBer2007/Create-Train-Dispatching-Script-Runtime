@@ -34,12 +34,36 @@ public final class FrameOutput {
         return dropped;
     }
 
+    /**
+     * 解析 id；失败就**记数并告警**，返回 {@code null}。
+     *
+     * <h2>为什么不静默返回</h2>
+     * 早先 {@code hold/proceed/command/aspect} 在 id 解析失败时直接 {@code return}。
+     * 调用者看到的是「调用成功、没有异常」——脚本作者会以为车被扣住了。
+     * 这类问题不崩、不报错、不留痕，是最难查的一种。
+     *
+     * <p>现在统一走这里：计数 + warn。脚本自己也能读 {@link #dropped()}。
+     */
+    private UUID requireId(String raw, String what) {
+        UUID id = uuid(raw);
+        if (id != null) return id;
+        dropped++;
+        env.log("warn", "ctd-script: bad {} '{}'", what, raw);
+        return null;
+    }
+
+    /** 脚本可读的丢弃计数——用它自检参数格式。 */
+    @HostAccess.Export
+    public int dropped() {
+        return dropped;
+    }
+
     // ── 列车 ──────────────────────────────────────────────────────────────
 
     /** 让列车停车（授权 0）。 */
     @HostAccess.Export
     public void hold(String trainId, String reason) {
-        UUID id = uuid(trainId);
+        UUID id = requireId(trainId, "train id");
         if (id == null) return;
         frame.command(Command.TrainCommand.hold(id));
         trace("held " + trainId + ": " + (reason == null ? "" : reason));
@@ -48,7 +72,7 @@ public final class FrameOutput {
     /** 给定距离授权与限速。 */
     @HostAccess.Export
     public void proceed(String trainId, double authority, double speedCap) {
-        UUID id = uuid(trainId);
+        UUID id = requireId(trainId, "train id");
         if (id == null) return;
         if (authority <= 0 || speedCap <= 0) {
             frame.command(Command.TrainCommand.hold(id));
@@ -60,7 +84,7 @@ public final class FrameOutput {
     /** 同时指定授权、限速与是否保持。{@code hold=true} 时授权被忽略。 */
     @HostAccess.Export
     public void command(String trainId, double authority, double speedCap, boolean hold) {
-        UUID id = uuid(trainId);
+        UUID id = requireId(trainId, "train id");
         if (id == null) return;
         frame.command(new Command.TrainCommand(
             id, Command.Direction.KEEP,
@@ -73,7 +97,7 @@ public final class FrameOutput {
     /** 给某信号机的某一面设置语义。{@code side} 是 {@code "FIRST"} / {@code "SECOND"}。 */
     @HostAccess.Export
     public void aspect(String signalId, String side, String aspectId) {
-        UUID id = uuid(signalId);
+        UUID id = requireId(signalId, "signal id");
         if (id == null) return;
 
         Topology.SignalSide s;
