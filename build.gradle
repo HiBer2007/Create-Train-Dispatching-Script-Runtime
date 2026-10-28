@@ -72,6 +72,7 @@ dependencies {
      ["word", "org.graalvm.sdk"],
      ["collections", "org.graalvm.sdk"],
      ["nativeimage", "org.graalvm.sdk"],
+     ["jniutils", "org.graalvm.sdk"],
      ["truffle-api", "org.graalvm.truffle"],
      ["truffle-runtime", "org.graalvm.truffle"],
      ["truffle-compiler", "org.graalvm.truffle"],
@@ -81,9 +82,16 @@ dependencies {
      ["regex", "org.graalvm.regex"],
      ["icu4j", "org.graalvm.shadowed"],
      ["json", "org.graalvm.shadowed"],
+     ["xz", "org.graalvm.shadowed"],
      ["llvm-api", "org.graalvm.llvm"],
      ["profiler-tool", "org.graalvm.tools"]].each { pair ->
         jarJar(implementation(pair[1] + ":" + pair[0] + ":" + project.graalpy_version))
+    }
+
+    // python-language 的 module-info 还要求 org.bouncycastle.util。
+    // 版本与 GraalPy 不同线，单独指定。
+    ["bcprov-jdk18on", "bcpkix-jdk18on", "bcutil-jdk18on"].each { n ->
+        jarJar(implementation("org.bouncycastle:" + n + ":" + project.bouncycastle_version))
     }
 }
 

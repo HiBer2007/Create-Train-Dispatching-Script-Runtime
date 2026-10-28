@@ -659,3 +659,61 @@ JarJar 的嵌套模块在这里不起作用。
 
 要验证「脚本真的在游戏里跑起来」，必须用**生产式服务端**：
 真正的 NeoForge 服务端 + `mods/` 放打好的 jar。这是下一步。
+
+---
+
+## 23. 第十三轮：**脚本在真实服务端里驱动了列车**
+
+这是目标里那句「让脚本能在游戏里真实驱动列车」的第一次实证。
+
+### 完整链路
+
+```
+Python 脚本 ──GraalPy──> KernelApi ──> DispatchKernels ──> DispatchPass
+                                                              │
+                                                          DispatchFrame
+                                                              │
+                                                  CommandSink → SpeedApplier
+                                                              │
+                                                    train.targetSpeed
+```
+
+### 实测
+
+```
+# 脚本
+def on_frame(self, ctx, out):
+    for t in ctx.trains():
+        out.proceed(t.id(), 100, 0.35)
+
+# 服务端日志
+[ctdscript] 1/1 scripts loaded
+[ctdhost] kernel demo:drive active (all trains)
+[demo] id='510f512e-...' name=CTD-DIAG
+
+# /ctd host debugtrain drive  (把原生 target 抬到 1.0，同时下发 cap=0.4)
+# /ctd host status
+train : CTD-DIAG speed=0.000 target=0.350
+```
+
+`target=0.350` 而不是 0.4（debug 指令）也不是 1.0（原生）——
+**脚本的授权最严，所以它生效**。这正是「只能收紧」规则在真实链路上的体现。
+
+### 过程中修掉的四个 bug
+
+| # | 现象 | 根因 | 修法 |
+|---|---|---|---|
+| 1 | 重载后 `kernels` 从 2 涨到 3 | `refreshPasses` 只加不减 | 按 id 剪枝 |
+| 2 | 重载后旧脚本还在跑 | 同名工厂被替换，宿主看不出来 | API 加 `revision()`，变了就重建 |
+| 3 | `0 replaced` | 脚本注册没进 `ScriptRegistry` 的撤回清单 | 靠 revision 兜底 |
+| 4 | GraalPy 加载不了 | 模块层读不到 classpath jar | JarJar 嵌 19 个模块 |
+
+**第 2 个是最隐蔽的**：`DispatchKernels` 存的是工厂不是实例，宿主按 id 判断不出「被换掉了」，
+会一直握着绑在已关闭 Python 运行时上的 pass。表现就是「重载成功，但行为没变」——
+日志里还写着 `reloaded 1 scripts`，一切正常，只有车不动。
+
+### 一个反直觉的「正常」
+
+第一次跑 `target=0.000` 我以为是 bug，其实是**设计正确**：
+宿主只能收紧，假列车原生目标是 0，脚本无法把它调高。
+把原生抬到 1.0 之后脚本的 0.35 立刻生效。
