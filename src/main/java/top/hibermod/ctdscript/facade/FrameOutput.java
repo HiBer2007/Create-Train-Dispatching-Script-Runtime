@@ -200,6 +200,20 @@ public final class FrameOutput {
         env.log("info", "[script] {}", message);
     }
 
+    /**
+     * 通过**本帧**下发一条指派。
+     *
+     * <p>和 {@code operation.publish(...)} 的区别在于时序：
+     * 这一条会等其他内核跑完、与其它指令一起在帧末提交，
+     * 而 {@code publish} 是立刻生效。想让多个内核的指派按「后写覆盖」规则决出胜负，
+     * 就必须走这个口。
+     */
+    @HostAccess.Export
+    public void assign(top.hibermod.ctdapi.operation.Assignment assignment) {
+        if (assignment == null) return;
+        frame.assign(assignment);
+    }
+
     private void trace(String message) {
         env.log("info", "[script] {}", message);
     }
