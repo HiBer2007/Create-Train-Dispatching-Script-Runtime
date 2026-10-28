@@ -97,8 +97,10 @@ public final class SignalApi {
                                double speedFraction, String category) {
         top.hibermod.ctdscript.ScriptMode.requireStartup("SignalApi");
         Aspect.Category cat = Aspect.Category.valueOf(category.toUpperCase(java.util.Locale.ROOT));
-        SignalRegistries.registerAspect(
-            new Aspect(rl(namespace, path), Component.literal(displayName), speedFraction, cat));
+        Aspect a = new Aspect(rl(namespace, path), Component.literal(displayName), speedFraction, cat);
+        SignalRegistries.registerAspect(a);
+        top.hibermod.ctdscript.ScriptRegistry.add(
+            top.hibermod.ctdscript.ScriptRegistry.Kind.ASPECT, a.id(), a);
     }
 
     // ── 描述性对象 ────────────────────────────────────────────────────────
@@ -156,7 +158,10 @@ public final class SignalApi {
             aspects.forEach(b::aspectId);
             types.forEach(b::typeId);
             if (fallback != null) b.fallbackId(fallback);
-            SignalRegistries.registerSystem(b.build());
+            SignalSystem sys = b.build();
+            SignalRegistries.registerSystem(sys);
+            top.hibermod.ctdscript.ScriptRegistry.add(
+                top.hibermod.ctdscript.ScriptRegistry.Kind.SIGNAL_SYSTEM, id, sys);
             return id.toString();
         }
     }
@@ -213,7 +218,10 @@ public final class SignalApi {
             for (int i = 0; i < expressed.size(); i++) {
                 b.expresses(expressed.get(i).id(), slots.get(i));
             }
-            SignalRegistries.registerType(b.build());
+            SignalType type = b.build();
+            SignalRegistries.registerType(type);
+            top.hibermod.ctdscript.ScriptRegistry.add(
+                top.hibermod.ctdscript.ScriptRegistry.Kind.SIGNAL_TYPE, idOrigin, type);
             return idOrigin.toString();
         }
     }

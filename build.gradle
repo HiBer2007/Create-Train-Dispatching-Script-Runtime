@@ -117,4 +117,22 @@ tasks.register('operationBridgeTest', JavaExec) {
     systemProperty 'polyglot.engine.WarnInterpreterOnly', 'false'
 }
 
+tasks.register('sandboxTest', JavaExec) {
+    group = 'verification'
+    description = 'B6 验收：沙箱四道禁令'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'top.hibermod.ctdscript.tools.SandboxTest'
+    jvmArgs = ['--enable-native-access=ALL-UNNAMED']
+    systemProperty 'polyglot.engine.WarnInterpreterOnly', 'false'
+}
+
+tasks.register('reloadTest', JavaExec) {
+    group = 'verification'
+    description = 'B1-B4 验收：全量重载 + 失败整批回滚'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'top.hibermod.ctdscript.tools.ReloadTest'
+    jvmArgs = ['--enable-native-access=ALL-UNNAMED']
+    systemProperty 'polyglot.engine.WarnInterpreterOnly', 'false'
+}
+
 tasks.named('build') { dependsOn 'graalpySmokeTest' }

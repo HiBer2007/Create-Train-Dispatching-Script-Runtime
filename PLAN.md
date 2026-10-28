@@ -179,7 +179,7 @@ F（收尾）              ← 必须
 |---|---|---|
 | A | ✅ **完成** | A1–A8 全部实现并验收：`railCodecTest` 10 项、`deviceSwitchBridgeTest` 13 项 |
 | B | 🟡 部分 | 已做：watchdog、连续失败禁用、`/ctd reload`（kernel/ato）。待做：全量重载、回滚、统计 |
-| C | 🟡 进行中 | 代码已写到 C3/C8：`dispatch/`×3、`topology/`×3、`save/`×1、`mixin/`×1。其中 5 个纯 API/MC 类**已 javac 验证通过**；Create 侧待 jar。**阻塞**：Create jar 18.23 MB，下载 ~0.03 MB/s |
+| C | ✅ **MVP 打通** | 宿主在真实服务端跑通：`frames=420 gameTime=140`，帧刻 3:1。Mixin 未生效，已改双入口（`LevelTickEvent` 兜底，实测可用）。待验：铺轨后的非空拓扑、列车实际停/发、道岔物理扳动 |
 | D | ⏳ | 未开始 |
 | E | ⏳ | 未开始 |
 | F | ⏳ | 未开始 |

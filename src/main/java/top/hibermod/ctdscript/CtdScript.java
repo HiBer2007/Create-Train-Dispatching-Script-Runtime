@@ -1,5 +1,8 @@
 package top.hibermod.ctdscript;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -35,12 +38,15 @@ import top.hibermod.ctdapi.traction.Traction;
 @Mod(CtdScript.MOD_ID)
 public final class CtdScript {
 
+    private static final Logger LOG = LoggerFactory.getLogger("ctdscript");
+
     public static final String MOD_ID = "ctdscript";
 
     private static CtdScript instance;
 
     private final Path scriptRoot;
     private ScriptRuntime runtime;
+    private ScriptReloader reloader;
     private ScriptLoader.Report lastReport;
 
     public CtdScript(IEventBus modBus) {
@@ -80,21 +86,33 @@ public final class CtdScript {
      *
      * @return 加载报告；运行时不可用时返回 {@code null}
      */
-    public synchronized ScriptLoader.Report reloadScripts() {
-        try {
-            if (runtime != null) {
-                runtime.close();
-            }
-            runtime = new ScriptRuntime();
-            lastReport = new ScriptLoader(runtime, scriptRoot)
-                .loadAll(ScriptLoader.ALGORITHM_DIRS);
-            System.out.println("[ctdscript] reloaded: " + lastReport.summary());
-            return lastReport;
-        } catch (Throwable t) {
-            System.err.println("[ctdscript] reload failed: " + t);
-            return null;
-        }
+    /**
+     * 全量热重载：五类脚本全部重跑，失败则整批回滚。
+     *
+     * <h2>为什么可以重载「定义类」了</h2>
+     * 之前只有 kernel/ato 能重载，因为注册表冻结后无法增量修改。
+     * 现在 API 提供了 {@code unfreeze()} 与 {@code remove(id)}，
+     * 于是流程变成：解冻 → 撤掉上一批脚本注册项 → 重跑 → 重新冻结。
+     *
+     * <h2>为什么整批回滚而不是逐文件</h2>
+     * 逐文件回滚会留下「一半新一半旧」的注册表——那种状态比完全不重载更难排查。
+     * 全有或全无是唯一能让人放心的语义。
+     *
+     * <h2>回滚靠什么</h2>
+     * {@link ScriptRegistry} 记着每个注册项**对象本身**，所以回滚不需要
+     * 旧脚本文件还在，也不需要它还能跑通。改了文件也能退回去。
+     */
+    /**
+     * 全量热重载。逻辑在 {@link ScriptReloader} 里——那是可离线测试的版本，
+     * 这个方法只负责把结果转成命令输出。
+     */
+    public synchronized ScriptReloader.Result reloadScripts() {
+        if (reloader == null) reloader = new ScriptReloader(scriptRoot);
+        ScriptReloader.Result r = reloader.reload();
+        lastReport = r.report();
+        return r;
     }
+
 
     private void onCommonSetup(FMLCommonSetupEvent event) {
         // 脚本会引用内置的语义/灯色/速度等级，所以先把内置内容注册好
@@ -139,9 +157,13 @@ public final class CtdScript {
                 .requires(src -> src.hasPermission(2))
                 .then(Commands.literal("reload").executes(ctx -> {
                     var r = reloadScripts();
-                    ctx.getSource().sendSuccess(() -> Component.literal(
-                        r == null ? "reload failed" : r.summary("config/ctd/scripts")), false);
-                    return r == null ? 0 : r.ok();
+                    ctx.getSource().sendSuccess(() -> Component.literal(r.message()), false);
+                    if (!r.success()) {
+                        for (String f : r.report().failures()) {
+                            ctx.getSource().sendFailure(Component.literal("  " + f));
+                        }
+                    }
+                    return r.success() ? r.report().ok() : 0;
                 }))
                 .then(Commands.literal("list").executes(ctx -> {
                     var entries = ApiCatalog.entries();

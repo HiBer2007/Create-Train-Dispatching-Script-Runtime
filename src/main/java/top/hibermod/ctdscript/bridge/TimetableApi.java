@@ -45,7 +45,10 @@ public final class TimetableApi {
             b.speedClass(ResourceLocation.parse(speedClassId));
         }
 
-        Service.register(b.build());
+        Service svc = b.build();
+        Service.register(svc);
+        top.hibermod.ctdscript.ScriptRegistry.add(
+            top.hibermod.ctdscript.ScriptRegistry.Kind.SERVICE, svc.id(), svc);
         return namespace + ":" + path;
     }
 }

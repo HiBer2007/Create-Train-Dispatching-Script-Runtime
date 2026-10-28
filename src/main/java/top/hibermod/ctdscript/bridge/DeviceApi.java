@@ -50,13 +50,17 @@ public final class DeviceApi {
             }
         }
 
-        Devices.register(new Devices.DeviceType(
+        Devices.DeviceType dt = new Devices.DeviceType(
             ResourceLocation.fromNamespaceAndPath(namespace, path),
             Component.literal(displayName),
             k,
             caps,
             commandable,
-            systems));
+            systems);
+
+        Devices.register(dt);
+
+        top.hibermod.ctdscript.ScriptRegistry.add(top.hibermod.ctdscript.ScriptRegistry.Kind.DEVICE_TYPE, dt.id(), dt);
 
         return namespace + ":" + path;
     }
