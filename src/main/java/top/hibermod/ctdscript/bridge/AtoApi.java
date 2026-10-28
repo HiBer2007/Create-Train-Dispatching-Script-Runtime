@@ -1,26 +1,117 @@
 package top.hibermod.ctdscript.bridge;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.graalvm.polyglot.HostAccess;
+import org.graalvm.polyglot.Value;
+
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+
+import top.hibermod.ctdapi.ato.AtoEngine;
+import top.hibermod.ctdapi.ato.AtoEngines;
+import top.hibermod.ctdscript.adapters.PythonAto;
 
 /**
  * {@code ctd.ato}：把 Python 对象注册成 {@code AtoEngine}。
  *
- * <p><b>P0 阶段尚未实现</b>（roadmap P2）。与 {@link KernelApi} 同样的原因：
- * 需要适配器 + {@code AtoEngine.Context} 的 {@code @Export} 门面。
+ * <pre>
+ * from ctd import ato
  *
- * <p>实现时必须保留 API 的铁律：**一个 ATO 对应一套信号制度**，
- * 且校验发生在 {@code AtoEngines.freeze()} 里，**脚本不能绕过**。
+ * class SimpleAto:
+ *     def decide(self, ctx):
+ *         if not ctx.can_traction():
+ *             return ato.stop("no traction power")
+ *         return ato.decision(0.5, 0.0, 0.4, ato.NONE, False, "cruise")
+ *
+ * ato.register("mymod", "simple_ato", "ctdapi:mainline_4", SimpleAto())
+ * </pre>
+ *
+ * <p><b>信号制度是显式参数</b>，不是从对象里反射出来的。理由同 {@code kernel.register}：
+ * 一种写法，错了立刻报。而且注册后仍然要过 {@code AtoEngines.freeze()} 的校验。
  */
 public final class AtoApi {
 
     public static final AtoApi INSTANCE = new AtoApi();
 
+    private final List<ResourceLocation> registered = new ArrayList<>();
+
     private AtoApi() {}
 
+    // ── 决策常量 ──────────────────────────────────────────────────────────
+
+    @HostAccess.Export public final AtoEngine.DoorAction NONE = AtoEngine.DoorAction.NONE;
+    @HostAccess.Export public final AtoEngine.DoorAction OPEN = AtoEngine.DoorAction.OPEN;
+    @HostAccess.Export public final AtoEngine.DoorAction CLOSE = AtoEngine.DoorAction.CLOSE;
+
+    // ── 决策工厂 ──────────────────────────────────────────────────────────
+
+    /**
+     * 构造一条操纵决策。
+     *
+     * @param traction    牵引档位 0..1
+     * @param brake       制动档位 0..1
+     * @param targetSpeed 目标速度（格/tick）
+     * @param doors       车门动作
+     * @param hold        是否保持停车
+     * @param reason      一句话说明（进 HUD 与日志），不要留空
+     */
     @HostAccess.Export
-    public String register(Object pythonObject) {
-        throw new UnsupportedOperationException(
-            "ctd.ato.register() is not implemented yet (roadmap P2). "
-                + "Its signal-system binding must still be enforced by AtoEngines.freeze().");
+    public AtoEngine.Decision decision(double traction, double brake, double targetSpeed,
+                                       AtoEngine.DoorAction doors, boolean hold, String reason) {
+        return new AtoEngine.Decision(traction, brake, targetSpeed, doors, hold, null,
+            Component.literal(reason == null ? "" : reason));
+    }
+
+    /** 全制动停车。 */
+    @HostAccess.Export
+    public AtoEngine.Decision stop(String reason) {
+        return AtoEngine.Decision.stop(reason == null ? "" : reason);
+    }
+
+    /** 惰行。 */
+    @HostAccess.Export
+    public AtoEngine.Decision coast(String reason) {
+        return AtoEngine.Decision.coast(reason == null ? "" : reason);
+    }
+
+    // ── 注册 ──────────────────────────────────────────────────────────────
+
+    /**
+     * @param namespace       ATO id 命名空间
+     * @param path            ATO id 路径
+     * @param signalSystemId  绑定的信号制度（"ctdapi:mainline_4"）
+     * @param pythonObject    带 {@code decide(ctx)} 的 Python 对象
+     */
+    @HostAccess.Export
+    public String register(String namespace, String path, String signalSystemId, Value value) {
+        // 同 KernelApi：参数必须声明成 Value，声明成 Object 收不到真正的 guest value。
+        ResourceLocation id = ResourceLocation.fromNamespaceAndPath(namespace, path);
+        ResourceLocation system = ResourceLocation.parse(signalSystemId);
+
+        PythonAto engine = new PythonAto(id, system, value);
+        if (AtoEngines.get(id).isPresent()) {
+            AtoEngines.replace(engine);      // 热重载
+        } else {
+            AtoEngines.register(engine);
+            registered.add(id);
+        }
+        return id.toString();
+    }
+
+    @HostAccess.Export
+    public List<String> registered() {
+        List<String> out = new ArrayList<>();
+        for (ResourceLocation id : registered) out.add(id.toString());
+        return out;
+    }
+
+    public List<ResourceLocation> registeredIds() {
+        return List.copyOf(registered);
+    }
+
+    public void reset() {
+        registered.clear();
     }
 }

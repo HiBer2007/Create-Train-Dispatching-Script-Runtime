@@ -1,27 +1,74 @@
 package top.hibermod.ctdscript.bridge;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.graalvm.polyglot.HostAccess;
+import org.graalvm.polyglot.Value;
+
+import net.minecraft.resources.ResourceLocation;
+
+import top.hibermod.ctdapi.DispatchKernels;
+import top.hibermod.ctdscript.adapters.PythonKernel;
 
 /**
  * {@code ctd.kernel}：把 Python 对象注册成 {@code DispatchKernel}。
  *
- * <p><b>P0 阶段尚未实现。</b>它需要一层适配器把 Python 的 {@code on_frame(ctx, out)}
- * 包成 Java 的 {@code DispatchKernel#onFrame}，并且为 {@code FrameContext} /
- * {@code DispatchFrame} 提供 {@code @Export} 门面——因为运行时是
- * {@code HostAccess.EXPLICIT}，API 的接口本身不带注解，Python 直接调用会看不到方法。
+ * <p>用法：
+ * <pre>
+ * from ctd import kernel
  *
- * <p>这道门面是 P1 的主要工作量，也是「脚本能看见多少 API」的边界定义处。
+ * class FixedBlockKernel:
+ *     def on_frame(self, ctx, out):
+ *         ...
+ *
+ * kernel.register("mymod", "fixed_block", FixedBlockKernel())
+ * </pre>
+ *
+ * <p><b>为什么 id 是显式传的</b>：原方案里让脚本实现 {@code id()} 返回元组，
+ * 但那要求桥接层去猜返回值类型（列表？元组？字符串？），错一次就是一个难查的启动失败。
+ * 显式参数只有一种写法，错了立刻报。
  */
 public final class KernelApi {
 
     public static final KernelApi INSTANCE = new KernelApi();
 
+    /** 本进程注册过的脚本内核，供 reload 时回滚。 */
+    private final List<ResourceLocation> registered = new ArrayList<>();
+
     private KernelApi() {}
 
     @HostAccess.Export
-    public String register(Object pythonObject) {
-        throw new UnsupportedOperationException(
-            "ctd.kernel.register() is not implemented yet (roadmap P1). "
-                + "It needs DispatchKernel adapters plus @Export facades for FrameContext/DispatchFrame.");
+    public String register(String namespace, String path, Value value) {
+        // 参数类型必须是 Value：声明成 Object 时 GraalPy 传过来的是包装对象，
+        // instanceof Value 判不出来。
+        ResourceLocation id = ResourceLocation.fromNamespaceAndPath(namespace, path);
+        PythonKernel kernel = new PythonKernel(id, value);
+
+        // 热重载：同一 id 第二次进来是「换实现」而不是「重复注册」。
+        // 正常注册路径（宿主/其它模组）仍然走 DispatchKernels.register，重复即抛。
+        if (DispatchKernels.isRegistered(id)) {
+            DispatchKernels.replace(id, () -> kernel);
+        } else {
+            DispatchKernels.register(id, () -> kernel);
+            registered.add(id);
+        }
+        return id.toString();
+    }
+
+    /** 已注册的脚本内核 id。 */
+    @HostAccess.Export
+    public List<String> registered() {
+        List<String> out = new ArrayList<>();
+        for (ResourceLocation id : registered) out.add(id.toString());
+        return out;
+    }
+
+    public List<ResourceLocation> registeredIds() {
+        return List.copyOf(registered);
+    }
+
+    public void reset() {
+        registered.clear();
     }
 }

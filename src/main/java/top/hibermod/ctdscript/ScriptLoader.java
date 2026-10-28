@@ -50,8 +50,18 @@ public final class ScriptLoader {
 
     /** 全量加载。单个脚本失败不影响其它脚本（但失败的注册不会落库）。 */
     public Report loadAll() {
+        return loadAll(List.of(ORDER));
+    }
+
+    /**
+     * 只加载指定子目录。
+     *
+     * <p>热重载用：只有 {@code kernel} 与 {@code ato} 支持替换，
+     * 其它注册表（信号 / 设备 / 交路）一旦冻结就无法增量修改。
+     */
+    public Report loadAll(List<String> dirs) {
         List<Path> files = new ArrayList<>();
-        for (String dir : ORDER) {
+        for (String dir : dirs) {
             Path p = root.resolve(dir);
             if (!Files.isDirectory(p)) continue;
             try (Stream<Path> s = Files.walk(p)) {

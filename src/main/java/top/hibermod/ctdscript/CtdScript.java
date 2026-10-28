@@ -67,6 +67,35 @@ public final class CtdScript {
         return lastReport;
     }
 
+    /**
+     * 热重载脚本。
+     *
+     * <p><b>只重载 {@code kernel/} 与 {@code ato/}</b>——只有这两类注册在 API 侧有
+     * {@code replace(...)} 语义。信号制度 / 设备 / 交路一旦 {@code freeze()} 就不能增量修改，
+     * 重载它们必须重启服务器。
+     *
+     * <p>窗口期：旧运行时先关、新脚本后跑，中间没有内核在发指令。
+     * 按 API 的「零指令 = 不干预」原则，列车会退回 Create 原生行为一个 tick 左右。
+     * 这是可接受的降级，不是 bug。
+     *
+     * @return 加载报告；运行时不可用时返回 {@code null}
+     */
+    public synchronized ScriptLoader.Report reloadScripts() {
+        try {
+            if (runtime != null) {
+                runtime.close();
+            }
+            runtime = new ScriptRuntime();
+            lastReport = new ScriptLoader(runtime, scriptRoot)
+                .loadAll(java.util.List.of("kernel", "ato"));
+            System.out.println("[ctdscript] reloaded: " + lastReport.summary());
+            return lastReport;
+        } catch (Throwable t) {
+            System.err.println("[ctdscript] reload failed: " + t);
+            return null;
+        }
+    }
+
     private void onCommonSetup(FMLCommonSetupEvent event) {
         // 脚本会引用内置的语义/灯色/速度等级，所以先把内置内容注册好
         SignalRegistries.bootstrap();
@@ -108,6 +137,12 @@ public final class CtdScript {
         LiteralArgumentBuilder<net.minecraft.commands.CommandSourceStack> root =
             Commands.literal("ctd")
                 .requires(src -> src.hasPermission(2))
+                .then(Commands.literal("reload").executes(ctx -> {
+                    var r = reloadScripts();
+                    ctx.getSource().sendSuccess(() -> Component.literal(
+                        r == null ? "reload failed" : r.summary("config/ctd/scripts")), false);
+                    return r == null ? 0 : r.ok();
+                }))
                 .then(Commands.literal("list").executes(ctx -> {
                     var entries = ApiCatalog.entries();
                     ctx.getSource().sendSuccess(

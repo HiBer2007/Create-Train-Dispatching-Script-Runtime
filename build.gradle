@@ -72,4 +72,13 @@ tasks.register('signalBridgeTest', JavaExec) {
     systemProperty 'polyglot.engine.WarnInterpreterOnly', 'false'
 }
 
+tasks.register('kernelAtoBridgeTest', JavaExec) {
+    group = 'verification'
+    description = 'P1/P2 验收：脚本内核与脚本 ATO 在离线环境驱动 API'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'top.hibermod.ctdscript.tools.KernelAtoBridgeTest'
+    jvmArgs = ['--enable-native-access=ALL-UNNAMED']
+    systemProperty 'polyglot.engine.WarnInterpreterOnly', 'false'
+}
+
 tasks.named('build') { dependsOn 'graalpySmokeTest' }

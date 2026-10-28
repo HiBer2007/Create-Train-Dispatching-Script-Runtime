@@ -53,9 +53,17 @@ public final class ScriptRuntime implements AutoCloseable {
     private volatile boolean closed;
 
     public ScriptRuntime() {
+        // EXPLICIT 只管「成员可见性」：没标 @Export 的方法不可达。
+        // 但集合访问是另一组开关——不开的话，返回的 java.util.List 在 Python 里
+        // 不是 iterable，脚本一写 for 就炸（TypeError: foreign object is not iterable）。
+        HostAccess access = HostAccess.newBuilder(HostAccess.EXPLICIT)
+            .allowListAccess(true)
+            .allowMapAccess(true)
+            .allowArrayAccess(true)
+            .build();
+
         this.context = Context.newBuilder("python")
-            // 只允许 @Export 成员；getClass() 之类的反射入口因此不可达
-            .allowHostAccess(HostAccess.EXPLICIT)
+            .allowHostAccess(access)
             // 脚本不能 import java / 按名字找类
             .allowHostClassLookup(name -> false)
             // 不起进程、不起线程、不碰文件

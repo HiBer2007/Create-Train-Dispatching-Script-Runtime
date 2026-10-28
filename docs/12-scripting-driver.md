@@ -164,10 +164,15 @@ top.hibermod.ctdscript
 ### 4.1 沙箱配置
 
 ```java
+HostAccess access = HostAccess.newBuilder(HostAccess.EXPLICIT)
+    .allowListAccess(true)      // ★ 见下面那条坑
+    .allowMapAccess(true)
+    .allowArrayAccess(true)
+    .build();
+
 Context.newBuilder("python")
-    .allowHostAccess(HostAccess.EXPLICIT)      // 只有 @HostAccess.Export 可见
+    .allowHostAccess(access)                   // 只有 @HostAccess.Export 成员可见
     .allowHostClassLookup(name -> false)       // 禁止 import java / 反射找类
-    .allowIO(IOAccess.NONE)                    // 脚本不能碰文件系统
     .allowCreateProcess(false)
     .allowCreateThread(false)
     .option("python.ForceImportSite", "false")
@@ -175,6 +180,20 @@ Context.newBuilder("python")
 ```
 
 **四条禁令**：不暴露 `java` 包、不允许文件系统、不允许起进程、不允许起线程。
+
+> ### ⚠ 踩过的坑：`EXPLICIT` 不等于「能遍历集合」
+>
+> `HostAccess.EXPLICIT` 管的是**成员可见性**，集合访问是另外三个开关。
+> 只开 EXPLICIT 时，门面返回的 `java.util.List` 在 Python 里**不是 iterable**：
+>
+> ```
+> TypeError: foreign object is not iterable
+> ```
+>
+> 表现是脚本一写 `for t in ctx.trains():` 就整帧失败，而报错还被
+> 「本帧丢弃 → 退回原生」吞掉，很难定位。必须显式 `allowListAccess(true)`。
+>
+> 顺带：开了之后 `len(ctx.trains())` 也能用了。
 
 ### 4.2 `ctd` 包的注入
 
@@ -236,27 +255,25 @@ signal.register_system(system)
 from ctd import kernel
 
 class FixedBlockKernel:
-    def id(self):
-        return "mymod", "fixed_block"
-
     def on_frame(self, ctx, out):
-        for train in ctx.telemetry().trains():
-            if train.derailed() or train.manually_driven():
+        for t in ctx.trains():
+            if t.manually_driven() or t.derailed():
                 continue
-            if train.route() is None:
-                out.hold(train.id(), "no route")
+            if not t.has_route():
+                out.hold(t.id(), "no route")
                 continue
-            ma = max(0, min(train.route().remaining(),
-                            nearest_obstacle(train, ctx.telemetry())) - 0.5)
-            cap = (2 * train.acceleration() * ma) ** 0.5
-            out.proceed(train.id(), ma, min(cap, train.max_speed()))
+            ma = min(t.route_remaining(), t.speed_for(max(t.authority(), 0.0)))
+            out.proceed(t.id(), ma, t.speed_for(max(ma, 0.0)))
+        out.log("frame %d: %d trains" % (ctx.game_time(), len(ctx.trains())))
 
-kernel.register(FixedBlockKernel())
+kernel.register("mymod", "fixed_block", FixedBlockKernel())
 ```
 
+**注意 id 是显式传的**：原方案让脚本实现 `id()` 返回元组，但桥接层得去猜返回值类型
+（列表？元组？字符串？），猜错一次就是一个难查的启动失败。显式参数只有一种写法。
+
 **关键性能设计**：`on_frame` **一次调用处理整批列车**，
-而不是「每列车一次跨语言调用」。跨语言调用是主要开销来源，
-所以粒度必须是「一帧一次」。
+而不是「每列车一次跨语言调用」。跨语言调用是主要开销来源。
 
 ### 5.3 ATO：必须保留「一个 ATO ⟷ 一套信号制度」
 
@@ -264,37 +281,25 @@ kernel.register(FixedBlockKernel())
 from ctd import ato
 
 class SimpleAto:
-    def id(self):
-        return "mymod", "simple_ato"
-
-    def signal_system_id(self):
-        return ("ctdapi", "mainline_4")      # 必须与已注册制度一致
-
     def decide(self, ctx):
         if ctx.under_emergency():        return ato.stop("emergency")
         if not ctx.can_traction():       return ato.stop("no traction power")
         if ctx.blocked_ahead():          return ato.stop("track closed")
         if ctx.authority() <= 0:         return ato.stop("no movement authority")
 
-        limit = ctx.permitted_speed()
-        if ctx.speed_class():
-            limit = min(limit, ctx.speed_class().max_speed())
-        limit = min(limit, ctx.strictest_limit())
-
-        allowed = (2 * ctx.train().acceleration() * ctx.authority()) ** 0.5
-        target  = min(limit, allowed)
-
-        if ctx.distance_to_target() < 0.5:
-            doors = ato.OPEN if ctx.at_platform() and not ctx.doors_open() else ato.NONE
-            return ato.Decision(0, 1, 0, doors, True, None, "arrived")
+        limit = min(ctx.permitted_speed(), ctx.speed_class_limit(), ctx.strictest_limit())
+        target = min(limit, ctx.speed_for_authority())
 
         dv = target - ctx.train().speed()
         if dv >= 0:
-            return ato.Decision(min(1, dv / 0.05), 0, target, ato.NONE, False, None, "accelerate")
-        return ato.Decision(0, min(1, -dv / 0.05), target, ato.NONE, False, None, "brake")
+            return ato.decision(min(1.0, dv / 0.05), 0.0, target, ato.NONE, False, "accelerate")
+        return ato.decision(0.0, min(1.0, -dv / 0.05), target, ato.NONE, False, "brake")
 
-ato.register(SimpleAto())
+ato.register("mymod", "simple_ato", "ctdapi:mainline_4", SimpleAto())
 ```
+
+`decide` 返回 `ato.decision(...)` / `ato.stop(...)` / `ato.coast(...)`，
+返回 `None` 等价于「本帧不干预」。
 
 **桥接层不做任何放宽**：`ato.register` 只是把 Python 对象包成 `AtoEngine`，
 交给 `AtoEngines.register`。**「制度存在且唯一」的校验仍在 API 的 `freeze()` 里**。
@@ -403,18 +408,39 @@ Python 负责**策略编排**（条件判断、状态机、规则），
 `/ctd reload` 的行为：
 
 ```
-① 停用当前生效的脚本内核/ATO（其 state 保留）
-② 重新执行脚本目录
-③ 重新注册
-④ 重新 freeze（API 允许 reload 时重开一次）
-⑤ 激活新的内核/ATO
+① 关闭旧运行时（Context.close）
+② 新建运行时
+③ 只重跑 kernel/ 与 ato/ 目录
+④ 注册走 API 的 replace(...) 而不是 register(...)
 ```
 
-**注意**：`①→④` 之间有一个窗口，此时没有内核在发指令。
-按 API 的「零指令 = 不干预」原则，列车会**退回 Create 原生行为**一个 tick。
-这是可接受的降级，不是 bug——但必须在文档里讲清楚，否则会被当成「reload 时列车抽风」。
+**只有 kernel 与 ato 支持热重载。** 信号制度 / 设备 / 交路一旦 `freeze()` 就不能增量修改，
+重载它们必须重启服务器——这是 API 的约束，不是偷懒。
 
-只有「注册类」脚本支持热重载；已经 freeze 的注册表**不能增量修改**。
+为此 API 增加了两个方法（`DispatchKernels` / `AtoEngines`）：
+
+```java
+replace(id, factory)   // 同 id 换实现，不抛异常
+remove(id)             // 注销
+```
+
+**它们刻意与 `register` 分开**：正常注册仍然重复即抛，
+否则「重复注册」这个最有价值的早期错误就被吞掉了。只有热重载路径才用 `replace`。
+
+**窗口期**：`①→③` 之间没有内核在发指令。按 API 的「零指令 = 不干预」原则，
+列车会**退回 Create 原生行为**一个 tick 左右。这是可接受的降级，不是 bug——
+但必须在文档里讲清楚，否则会被当成「reload 时列车抽风」。
+
+### 10.1 连续失败自动禁用
+
+`PythonKernel` 统计连续失败次数，达到 10 次就**把自己变成空操作**：
+
+```
+连续失败 → 日志（第 1 次与每 5 次）→ 第 10 次后禁用 + 一条 error 日志
+```
+
+禁用不是注销——宿主仍认为内核存在，只是不再写指令，效果就是退回原生。
+之所以不注销：**脚本自己炸了的时候，没人能保证宿主还愿意配合注销**。
 
 ---
 
@@ -435,17 +461,27 @@ Python 负责**策略编排**（条件判断、状态机、规则），
 | 阶段 | 状态 |
 |---|---|
 | P0 | ✅ **通过**（`signalBridgeTest`）：GraalPy 嵌入、沙箱、`ctd` 包注入、信号制度注册、freeze 校验 |
-| P1 | ⏳ 未开始 —— 需要 `DispatchKernel` 适配器 + `FrameContext`/`DispatchFrame` 的 `@Export` 门面 |
-| P2 | ⏳ 未开始 —— 同上，另加 `AtoEngine.Context` 门面 |
-| P3 | 部分可用：`ctd.device.registerType` / `ctd.timetable.registerService` 已实现 |
-| P4 | 部分可用：watchdog 已实现（基于 `Context.interrupt`），热重载未做 |
+| P1 | ✅ **通过**（`kernelAtoBridgeTest`）：脚本内核驱动列车、异常时退回原生 |
+| P2 | ✅ **通过**：脚本 ATO 绑定制度、授权 0 时停车、freeze 收下注册 |
+| P3 | 部分可用：`ctd.device.registerType` / `ctd.timetable.registerService` 已实现；道岔锁闭未接 |
+| P4 | 部分可用：watchdog + 连续失败自动禁用 + `/ctd reload`（仅 kernel/ato）已做；信号/设备热重载需重启 |
 | P5/P6 | 未开始 |
 
-**P1 的关键工作量**：API 的接口不带 `@HostAccess.Export`（它不能依赖 GraalPy），
-而运行时是 `EXPLICIT`，所以 Python 直接调 `ctx.telemetry()` 会看不到方法。
-必须为 `FrameContext` / `DispatchFrame` / `Telemetry.TrainState` / `AtoEngine.Context`
-各写一层 `@Export` 门面。**这层门面同时决定了「脚本能看见多少 API」**，
-所以它不该是机械翻译，而要按「脚本真正需要什么」裁剪。
+**P1/P2 实测记录**（`./gradlew kernelAtoBridgeTest`，不启动游戏）：
+
+```
+  ok   内核产出了 2 条列车指令
+  ok   有进路的车收到授权 > 0
+  ok   无进路的车被扣停
+  ok   脚本日志已转发
+  ok   ATO 绑定到 ctdapi:mainline_4
+  ok   ATO 返回了决策
+  ok   目标速度落在授权允许范围内
+  ok   原因非空
+  ok   授权为 0 时停车
+  ok   热重载：同 id 重新注册未抛异常
+  ok   freezeAll() 通过（含脚本注册的内核与 ATO）
+```
 
 ---
 

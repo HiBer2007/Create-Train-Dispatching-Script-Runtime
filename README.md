@@ -28,11 +28,12 @@ CTD API 从设计之初就把信号、ATO、设备、HUD、PIS 全做成了**开
 |---|---|
 | GraalPy 嵌入 + 沙箱 | ✅ 已实测 |
 | `ctd.signal` 注册制度 / 机型 / 语义 | ✅ P0 通过 |
+| `ctd.kernel` 注册调度内核 | ✅ P1 通过 |
+| `ctd.ato` 注册 ATO | ✅ P2 通过 |
 | `ctd.device` 注册设备类型 | ✅ |
 | `ctd.timetable` 注册交路 | ✅ |
-| `ctd.kernel` 注册调度内核 | ⏳ P1 |
-| `ctd.ato` 注册 ATO | ⏳ P2 |
-| 热重载 | ⏳ P4 |
+| `/ctd reload` 热重载 | ✅ 仅 kernel / ato |
+| 连续失败自动禁用 | ✅ |
 
 详见 `docs/12-scripting-driver.md`。
 
@@ -85,6 +86,49 @@ sys.register()
 ```
 /ctd list      列出注册表内容（权限 2）
 /ctd scripts   脚本加载报告（成功/失败）
+/ctd reload    重载 kernel/ 与 ato/（其它注册表需重启服务器）
+```
+
+---
+
+## 脚本示例
+
+```python
+# config/ctd/scripts/kernel/fixed_block.py
+from ctd import kernel
+
+class FixedBlock:
+    def on_frame(self, ctx, out):
+        for t in ctx.trains():
+            if t.manually_driven() or t.derailed():
+                continue
+            if not t.has_route():
+                out.hold(t.id(), "no route")
+                continue
+            ma = min(t.route_remaining(), t.speed_for(max(t.authority(), 0.0)))
+            out.proceed(t.id(), ma, t.speed_for(max(ma, 0.0)))
+
+kernel.register("mymod", "fixed_block", FixedBlock())
+```
+
+```python
+# config/ctd/scripts/ato/simple_ato.py
+from ctd import ato
+
+class SimpleAto:
+    def decide(self, ctx):
+        if not ctx.can_traction(): return ato.stop("no traction power")
+        if ctx.blocked_ahead():    return ato.stop("track closed")
+        if ctx.authority() <= 0:   return ato.stop("no movement authority")
+
+        limit = min(ctx.permitted_speed(), ctx.speed_class_limit(), ctx.strictest_limit())
+        target = min(limit, ctx.speed_for_authority())
+        dv = target - ctx.train().speed()
+        if dv >= 0:
+            return ato.decision(min(1.0, dv / 0.05), 0.0, target, ato.NONE, False, "accelerate")
+        return ato.decision(0.0, min(1.0, -dv / 0.05), target, ato.NONE, False, "brake")
+
+ato.register("mymod", "simple_ato", "ctdapi:mainline_4", SimpleAto())
 ```
 
 ---
