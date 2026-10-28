@@ -1,0 +1,75 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.141'
+}
+
+group = project.maven_group
+version = project.mod_version
+base {
+    archivesName = project.archives_name
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+}
+
+// ── NeoForged maven 镜像 ──────────────────────────────────────────────────
+// 与 ctdapi 同一套：maven.neoforged.net 在部分网络下 TCP 不可达。
+// ModDevGradle 延迟注册仓库，所以必须挂 whenObjectAdded。
+def neoforgeMirror = { repo ->
+    if (repo instanceof org.gradle.api.artifacts.repositories.MavenArtifactRepository) {
+        def u = repo.url.toString()
+        if (u.contains("://maven.neoforged.net")) {
+            repo.url = uri(u.replace("://maven.neoforged.net", "://neoforged.forgecdn.net"))
+            logger.lifecycle("[mirror] NeoForged maven -> ${repo.url}")
+        }
+    }
+}
+repositories.whenObjectAdded(neoforgeMirror)
+repositories.each(neoforgeMirror)
+gradle.projectsEvaluated { project.repositories.each(neoforgeMirror) }
+
+repositories {
+    mavenCentral()
+}
+
+neoForge {
+    version = project.neo_version
+}
+
+dependencies {
+    // CTD API：契约层。目前是本地 jar，发布到 maven 后换成坐标。
+    implementation files("libs/${project.ctdapi_jar}")
+
+    // ── GraalPy ──────────────────────────────────────────────────────────
+    // polyglot 是嵌入 API；python-community 是 Python 语言实现。
+    // 两者版本必须一致，否则 Truffle 会在运行时报引擎不匹配。
+    implementation "org.graalvm.polyglot:polyglot:${project.graalpy_version}"
+    implementation "org.graalvm.polyglot:python-community:${project.graalpy_version}"
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 21
+}
+
+// ── 烟测：验证 GraalPy 能在这个 JVM 上真的跑起来 ──────────────────────────
+tasks.register('graalpySmokeTest', JavaExec) {
+    group = 'verification'
+    description = '不启动游戏，直接验证 GraalPy 能否创建 python 上下文并执行代码'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'top.hibermod.ctdscript.tools.GraalPySmokeTest'
+    jvmArgs = ['--enable-native-access=ALL-UNNAMED']
+    systemProperty 'polyglot.engine.WarnInterpreterOnly', 'false'
+}
+
+tasks.register('signalBridgeTest', JavaExec) {
+    group = 'verification'
+    description = 'P0 验收：脚本注册信号制度 → 进入 API 注册表 → 通过 freeze'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'top.hibermod.ctdscript.tools.SignalBridgeTest'
+    jvmArgs = ['--enable-native-access=ALL-UNNAMED']
+    systemProperty 'polyglot.engine.WarnInterpreterOnly', 'false'
+}
+
+tasks.named('build') { dependsOn 'graalpySmokeTest' }

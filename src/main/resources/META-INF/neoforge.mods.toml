@@ -1,0 +1,37 @@
+modLoader = "javafml"
+loaderVersion = "[4,)"
+license = "LGPL-3.0-or-later"
+
+[[mods]]
+modId = "ctdscript"
+version = "${file.jarVersion}"
+displayName = "CTD Script Driver"
+authors = "HiBer_2007"
+description = '''
+GraalPy scripting driver for the Create Train Dispatching API.
+
+Lets server admins declare signal systems, devices, services, dispatch kernels
+and ATO engines in Python instead of Java. The bridge only translates
+registration calls -- every rule of the API stays enforced in the API itself.
+'''
+
+[[dependencies.ctdscript]]
+modId = "neoforge"
+type = "required"
+versionRange = "[21.1,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.ctdscript]]
+modId = "minecraft"
+type = "required"
+versionRange = "[1.21.1,1.22)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.ctdscript]]
+modId = "ctdapi"
+type = "required"
+versionRange = "[0.1,)"
+ordering = "AFTER"
+side = "BOTH"
