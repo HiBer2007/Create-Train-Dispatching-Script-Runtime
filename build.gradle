@@ -35,9 +35,26 @@ repositories {
 
 neoForge {
     version = project.neo_version
+
+    // 需要一个真实服务端来验证「脚本在游戏里跑得起来」。
+    // GraalPy 只在本模组的 runtimeClasspath 上是齐全的，所以从这里起服务最省事。
+    mods {
+        ctdscript {
+            sourceSet sourceSets.main
+        }
+    }
+    runs {
+        server {
+            server()
+            programArgument "--nogui"
+        }
+    }
 }
 
 dependencies {
+    // GraalPy 走运行期 classpath。原始 jar 带 module-info，会被 NeoForge 的模块层
+    // 当成命名模块，模组模块读不到它 —— 这些副本已剥离 module-info。
+    runtimeOnly fileTree(dir: "../ctdhost/libs/graalpy", include: ["*.jar"])
     // CTD API：契约层。目前是本地 jar，发布到 maven 后换成坐标。
     implementation files("libs/${project.ctdapi_jar}")
 
@@ -145,5 +162,50 @@ tasks.named('jar') {
             'Implementation-Title'  : project.findProperty('mod_name') ?: project.archives_name,
             'Implementation-Version': project.version
         )
+    }
+}
+
+// 把本模组与 GraalPy 运行期依赖复制到 ctdhost 的 run/mods，
+// 用于「两个模组同时加载」的集成验证。只挑 org.graalvm，其余是 NeoForge/MC，不能进 mods。
+tasks.register('stageModJars') {
+    group = 'verification'
+    description = '把 ctdscript + GraalPy 依赖放进 ctdhost 的 run/mods'
+    doLast {
+        def dest = file('../ctdhost/run/mods')
+        dest.mkdirs()
+        dest.listFiles()?.each { it.delete() }
+        copy {
+            from tasks.named('jar')
+            into dest
+        }
+        copy {
+            from configurations.runtimeClasspath
+            include { it.file.name.startsWith('python-community')
+                   || it.file.name.startsWith('graal-sdk')
+                   || it.file.name.startsWith('polyglot')
+                   || it.file.name.startsWith('python-language')
+                   || it.file.name.startsWith('python-embedding')
+                   || it.file.name.startsWith('nativeimage')
+                   || it.file.name.startsWith('truffle-api')
+                   || it.file.name.startsWith('truffle-runtime')
+                   || it.file.name.startsWith('truffle-compiler')
+                   || it.file.name.startsWith('regex')
+                   || it.file.name.startsWith('icu4j')
+                   || it.file.name.startsWith('collections')
+                   || it.file.name.startsWith('native-image')
+                   || it.file.name.startsWith('js-community')
+                   || it.file.name.startsWith('shadowed-icu4j')
+                   || it.file.name.startsWith('profiler') }
+            into dest
+        }
+        println "staged " + (dest.listFiles()?.length ?: 0) + " jars into " + dest
+    }
+}
+tasks.register('printRunCp') {
+    doLast {
+        def cp = tasks.named('runServer').get().classpath.files
+        println "runServer classpath entries: " + cp.size()
+        cp.findAll { it.name.contains('polyglot') || it.name.contains('python-language') }.each { println "  FOUND " + it }
+        if (cp.findAll { it.name.contains('polyglot') }.isEmpty()) println "  polyglot NOT on runServer classpath"
     }
 }

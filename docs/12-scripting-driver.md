@@ -549,3 +549,70 @@ ok   重载阶段允许注册内核
 
 - 同一份脚本里既注册制度又注册内核 → 整份按启动阶段处理，重载时**整份跳过**并报错。
 - 想只改算法又不想重启 → 把算法单独放 `kernel/`，别和定义混在一个文件里。
+
+---
+
+## 21. 第十一轮：两个模组一起跑，暴露三个问题
+
+### 环境
+
+把 ctdscript 的 jar 放进 ctdhost 的 `run/mods`，让宿主和脚本运行时同时加载。
+
+```
+Create Train Dispatching API 0.1.0 (ctdapi)
+Create Train Dispatching Script Runtime 0.1.0 (ctdscript)
+[ctdhost]: ctdhost: constructing
+```
+
+**共存本身是通的**：三个模组都在模组列表里，`/ctd` 没有命令冲突。
+
+### 问题一：诊断交路引用不存在的信号制度（已修）
+
+```
+[ctdscript] registry validation failed:
+  - service ctdapi:diagnostic uses unknown signal system ctdapi:diagnostic
+```
+
+上一轮我在 `DiagnosticKernel` 里注册了一条交路，但**没注册它引用的信号制度**。
+单跑 ctdhost 时没有 `freeze` 流程，所以一直没暴露；ctdscript 启动会 `freezeAll`，立刻抓到。
+
+修法：注册一个真实的诊断制度 + 机型。
+
+### 问题二：校验器拦下「停不了车的制度」（已修）
+
+注册了制度之后：
+
+```
+[ctdscript] registry validation failed:
+  - ctdapi:diagnostic has no STOP-category aspect (a signal system that cannot stop trains)
+```
+
+**这是 API 自己的安全规则在起作用**，拦得完全正确。
+补上 `SignalRegistries.bootstrap()` 与 `.aspect(Builtin.STOP)` 后通过（`registries frozen, 40 entries`）。
+
+### 问题三：GraalPy 在 NeoForge 里加载不了（**未解决**）
+
+```
+[ctdscript] scripting unavailable: java.lang.NoClassDefFoundError: org/graalvm/polyglot/PolyglotException
+```
+
+排查过程：
+
+| 尝试 | 结果 |
+|---|---|
+| 把 GraalPy 放进 `run/mods` | 无效——它没有 `mods.toml`，不是模组，也不会进 classpath |
+| 改成 `runtimeOnly fileTree(libs/graalpy)` | 无效 |
+| 在 ctdscript 自己的工程里起服务端 | 无效（同样报错，而单元测试里是好的） |
+| 剥掉 10 个 jar 的 `module-info.class` | 无效 |
+
+**根因**：NeoForge 用模块层加载模组，而 GraalPy 的 jar 只挂在普通 classpath 上，
+模组模块读不到它。`docs/12` 把这条记为风险 R2（「GraalPy 与 NeoForge 的模块系统冲突」），
+当时的对策是「尽早跑一次真实服务端启动」——**现在跑了，它发生了**。
+
+**下一步**：用 **JarJar**（jar-in-jar）打包。FML 会给嵌套 jar 建立正确的模块条目，
+这也是 NeoForge 生态里捆绑大型库的标准做法。同时它顺带解决 R3（体积）的发行方式问题。
+
+### 这一轮的价值
+
+单独跑任何一个模组都发现不了这三个问题。尤其是第三个：
+它不崩服，只是**静默降级**为「脚本不可用」，不跑真实服务端永远看不到。
