@@ -616,3 +616,46 @@ Create Train Dispatching Script Runtime 0.1.0 (ctdscript)
 
 单独跑任何一个模组都发现不了这三个问题。尤其是第三个：
 它不崩服，只是**静默降级**为「脚本不可用」，不跑真实服务端永远看不到。
+
+---
+
+## 22. 第十二轮：GraalPy 用 JarJar 打包
+
+### 上轮的结论
+
+只挂 classpath 时，模组模块读不到 GraalPy（`NoClassDefFoundError`）。
+试过运行期 classpath、`run/mods`、剥 `module-info`、挂模块路径——全部无效。
+
+### 这轮的做法
+
+**JarJar**：把 GraalPy 作为嵌套 jar 打进模组。FML 会给嵌套 jar 建立**模块条目**，模组模块就能读到它。
+
+```
+jar 大小: 36.1 MB
+嵌套 jar 数: 15
+  polyglot / word / collections / nativeimage
+  truffle-api / truffle-runtime / truffle-compiler / truffle-nfi / truffle-nfi-libffi
+  python-language / regex / icu4j / json / llvm-api / profiler-tool
+```
+
+36MB 是可接受的代价（压缩前约 150MB）。顺带解决了 `docs/12` 的 R3（体积与发行渠道）。
+
+### 踩的坑：少一个模块就启动不了
+
+第一次只嵌了 `polyglot`：
+
+```
+java.lang.module.FindException: Module org.graalvm.word not found,
+  required by org.graalvm.polyglot
+```
+
+`polyglot` 的 `module-info` 要求一串 GraalVM 兄弟模块。逐个补齐之后才能通过。
+另一处：`icu4j` 的坐标是 `org.graalvm.shadowed:icu4j`，不是 `org.graalvm.icu4j`——写错会静默解析失败。
+
+### 还没验的
+
+**开发运行（`runServer`）依然加载不了 GraalPy**，因为它跑的是 classes 目录而不是打出来的 jar，
+JarJar 的嵌套模块在这里不起作用。
+
+要验证「脚本真的在游戏里跑起来」，必须用**生产式服务端**：
+真正的 NeoForge 服务端 + `mods/` 放打好的 jar。这是下一步。
