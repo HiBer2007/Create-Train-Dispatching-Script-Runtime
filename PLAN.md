@@ -178,11 +178,11 @@ F（收尾）              ← 必须
 | 阶段 | 状态 | 备注 |
 |---|---|---|
 | A | ✅ **完成** | A1–A8 全部实现并验收：`railCodecTest` 10 项、`deviceSwitchBridgeTest` 13 项 |
-| B | 🟡 部分 | 已做：watchdog、连续失败禁用、`/ctd reload`（kernel/ato）。待做：全量重载、回滚、统计 |
+| B | ✅ **完成** | 全量重载（五类全可重载）+ 整批回滚 + 沙箱六项 + `disabled/` + 耗时统计。`reloadTest` 8 项、`sandboxTest` 6 项全绿 |
 | C | ✅ **MVP 打通** | 宿主在真实服务端跑通：`frames=420 gameTime=140`，帧刻 3:1。Mixin 未生效，已改双入口（`LevelTickEvent` 兜底，实测可用）。待验：铺轨后的非空拓扑、列车实际停/发、道岔物理扳动 |
-| D | ⏳ | 未开始 |
-| E | ⏳ | 未开始 |
-| F | ⏳ | 未开始 |
+| D | ✅ **完成** | `ctdweb` 仓库：WebSocket 桥（手写服务端，零依赖）+ 编解码 + 断线三策略。`bridgeTest` 18 项全绿 |
+| E | ⏳ | 可选，未开始 |
+| F | 🟡 部分 | 文档已齐（13/14/15）；待做：兼容测试、发 release |
 
 **最后更新**：阶段 A 完成时（A8 验收通过）。
 
