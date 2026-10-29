@@ -9,18 +9,20 @@ import net.minecraft.world.level.block.state.BlockState;
 /**
  * 车载设备的方块实体。
  *
- * <h2>存什么</h2>
- * 只有一个 {@code enabled}。它决定「这块设备所属的列车要不要显示 HUD 指示器」。
+ * <h2>它不存「启用」</h2>
+ * 是否显示仪表是**玩家自己的偏好**，存在存档的 {@code PlayerHudPrefs} 里，
+ * 不在这块方块的 NBT 里。方块只表明「这列车装了设备」。
  *
- * <h2>为什么要存在顶层而不是嵌一层</h2>
- * 方块被装到列车上时，Create 会把方块实体的 NBT **原样**塞进构造物
- * （{@code StructureBlockInfo.nbt()}）。客户端读的是那份 NBT——
- * 键写在顶层，客户端一句 {@code getBoolean("enabled")} 就能查到，
- * 不必反序列化整个实体。
+ * <p>把人的偏好写进方块，就会变成「最后点的那个人决定全车人看到什么」——
+ * 既不对，也解释不通。
+ *
+ * <h2>那它存什么</h2>
+ * 一个自由 tag：以后要做「这车装的是速度表还是电压表」，就加在这里。
+ * 现在保持空，是为了让「装上设备」这个事实本身可读、可同步。
  */
 public class OnboardDeviceBlockEntity extends BlockEntity {
 
-    private boolean enabled;
+    private CompoundTag deviceState = new CompoundTag();
 
     public OnboardDeviceBlockEntity(BlockPos pos, BlockState state) {
         this(EngineBlocks.onboardDeviceType(), pos, state);
@@ -31,31 +33,22 @@ public class OnboardDeviceBlockEntity extends BlockEntity {
         super(type, pos, state);
     }
 
-    public boolean enabled() {
-        return enabled;
-    }
-
-    public void setEnabled(boolean value) {
-        if (this.enabled == value) return;
-        this.enabled = value;
-        setChanged();
-    }
-
-    public boolean toggle() {
-        setEnabled(!enabled);
-        return enabled;
+    /** 设备自身的状态（暂时为空）。 */
+    public CompoundTag deviceState() {
+        return deviceState;
     }
 
     @Override
     protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.saveAdditional(tag, registries);
-        // 顶层：构造物里读的就是这一层
-        tag.putBoolean("enabled", enabled);
+        tag.put("Device", deviceState.copy());
     }
 
     @Override
     protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.loadAdditional(tag, registries);
-        enabled = tag.getBoolean("enabled");
+        if (tag.contains("Device")) {
+            deviceState = tag.getCompound("Device").copy();
+        }
     }
 }

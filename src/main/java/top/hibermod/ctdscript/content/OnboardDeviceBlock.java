@@ -4,6 +4,8 @@ import javax.annotation.Nullable;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
@@ -13,18 +15,20 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 
+import top.hibermod.ctdscript.net.HudPrefPayload;
+import top.hibermod.ctdscript.server.PlayerHudPrefs;
+
 /**
- * 车载设备：决定「这列车要不要显示 HUD 指示器」。
+ * 车载设备：**这列车具备显示仪表的能力**。
+ *
+ * <h2>它不是什么</h2>
+ * 它不是「某个人要不要看」的开关。开关属于人，见 {@link PlayerHudPrefs}。
+ * 如果把这层混进方块，就会出现「司机一开，全车乘客屏幕上都蹦出仪表」——
+ * 乘客不想看，也不该看到司机那套读数。
  *
  * <h2>用法</h2>
- * 放在车厢上（或先放地上、右键启用、再和车厢一起组装）。
- * 右键切换启用状态——**这个状态随构造物保存**，所以车开走之后仍然有效，
- * 存档读档也不会丢。
- *
- * <h2>为什么闸门要设在车上而不是玩家身上</h2>
- * 「谁在看」和「该不该有仪表」是两件事：
- * 一列没装设备的货车，乘客不该看到速度表；装了设备的客车，换个人坐上去也该看到。
- * 所以开关属于**车**，不属于人。
+ * 装在车厢上（或先放地上再和车厢一起组装）。玩家右键它，
+ * 切换的是**自己**的显示开关，别的乘客不受影响。
  */
 public class OnboardDeviceBlock extends Block implements EntityBlock {
 
@@ -41,17 +45,19 @@ public class OnboardDeviceBlock extends Block implements EntityBlock {
     @Override
     protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos,
                                                Player player, BlockHitResult hit) {
-        BlockEntity be = level.getBlockEntity(pos);
-        if (!(be instanceof OnboardDeviceBlockEntity device)) {
+        if (level.isClientSide) {
+            return InteractionResult.SUCCESS;      // 客户端只回手，不做决定
+        }
+        if (!(level instanceof ServerLevel serverLevel) || !(player instanceof ServerPlayer sp)) {
             return InteractionResult.PASS;
         }
 
-        if (level.isClientSide) {
-            return InteractionResult.SUCCESS;
-        }
+        boolean now = PlayerHudPrefs.get(serverLevel.getServer()).toggle(sp.getUUID());
 
-        boolean now = device.toggle();
-        player.displayClientMessage(
+        // 立刻把结果发回本人；别的玩家收不到，因为他们没按
+        sp.connection.send(new HudPrefPayload(now));
+
+        sp.displayClientMessage(
             Component.translatable(now
                 ? "block.ctdscript.onboard_display.on"
                 : "block.ctdscript.onboard_display.off"), true);

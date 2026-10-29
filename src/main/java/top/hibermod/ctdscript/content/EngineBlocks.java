@@ -91,6 +91,19 @@ public final class EngineBlocks {
         }
     }
 
+    /**
+     * 注册「车上右键」的行为。
+     *
+     * <p>必须在世界加载前完成——构造物落地时就会去 {@code interactors} 里查，
+     * 那时候注册表已经要齐了。
+     */
+    public static void registerInteractions() {
+        Block block = onboardBlock();
+        if (block == null) return;
+        com.simibubi.create.api.behaviour.interaction.MovingInteractionBehaviour.REGISTRY
+            .register(block, new OnboardDeviceInteraction());
+    }
+
     /** 车载设备方块本体（客户端闸门要按它筛选构造物里的方块）。 */
     public static Block onboardBlock() {
         return net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(ONBOARD_DISPLAY);

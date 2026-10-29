@@ -58,6 +58,7 @@ public final class CtdScript {
         loadStartupScripts();
         top.hibermod.ctdscript.content.ScriptBlocks.attach(modBus);
         top.hibermod.ctdscript.content.EngineBlocks.attach(modBus);
+        top.hibermod.ctdscript.content.EngineBlocks.registerInteractions();
 
         // 美术资源：把脚本的 assets/ 复制成资源包，并为每个方块合成模型 JSON。
         // 必须在资源加载之前——也就是现在（构造期）。
@@ -194,6 +195,15 @@ public final class CtdScript {
                 System.err.println("[ctdscript] registry validation failed: " + e.getMessage());
             }
         });
+    }
+
+    /** 客户端渲染器注册：车载设备的按人外观。 */
+    @net.neoforged.bus.api.SubscribeEvent
+    public void onRegisterRenderers(
+            net.neoforged.neoforge.client.event.EntityRenderersEvent.RegisterRenderers event) {
+        event.registerBlockEntityRenderer(
+            top.hibermod.ctdscript.content.EngineBlocks.onboardDeviceType(),
+            top.hibermod.ctdscript.client.OnboardDeviceRenderer::new);
     }
 
     private void onRegisterCommands(RegisterCommandsEvent event) {
