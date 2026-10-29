@@ -111,7 +111,20 @@ public final class AtoApi {
         return List.copyOf(registered);
     }
 
+    /**
+     * 撤销本进程通过脚本注册的**全部 ATO 引擎**（热重载用）。
+     *
+     * <p>与 {@code KernelApi#reset} 同一个问题：只清列表不注销，
+     * 脚本换 id 之后旧引擎永远留在注册表里。
+     */
     public void reset() {
+        for (ResourceLocation id : registered) {
+            try {
+                AtoEngines.remove(id);
+            } catch (Throwable ignored) {
+                // 注销失败不该挡住重载
+            }
+        }
         registered.clear();
     }
 }

@@ -25,7 +25,8 @@ public final class ScriptLoader {
 
     /** 执行顺序固定。 */
     /** 定义类：启动加载，不可热重载。 */
-    public static final java.util.List<String> DEFINITION_DIRS = List.of("signal", "device", "timetable");
+    public static final java.util.List<String> DEFINITION_DIRS =
+        List.of("signal", "device", "timetable", "block", "hud");
 
     /** 算法类：可热重载。 */
     public static final java.util.List<String> ALGORITHM_DIRS = List.of("kernel", "ato");

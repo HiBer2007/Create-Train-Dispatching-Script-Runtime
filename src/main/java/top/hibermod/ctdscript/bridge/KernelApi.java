@@ -68,7 +68,22 @@ public final class KernelApi {
         return List.copyOf(registered);
     }
 
+    /**
+     * 撤销本进程通过脚本注册的**全部内核**（热重载用）。
+     *
+     * <p>早先这里只 {@code registered.clear()}，既没从 {@code DispatchKernels} 注销，
+     * 也没有任何地方调用它。后果：脚本换个内核 id 之后，旧 id 永远留在注册表里，
+     * 继续用绑在**已关闭 Python 运行时**上的对象跑——日志里会看到两个内核同时 active，
+     * 旧的还在打警告。
+     */
     public void reset() {
+        for (ResourceLocation id : registered) {
+            try {
+                DispatchKernels.remove(id);
+            } catch (Throwable ignored) {
+                // 注销失败不该挡住重载
+            }
+        }
         registered.clear();
     }
 }

@@ -20,6 +20,7 @@ import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 
 import top.hibermod.ctdapi.ApiCatalog;
+import top.hibermod.ctdscript.content.ContentRegistry;
 import top.hibermod.ctdapi.interop.Interop;
 import top.hibermod.ctdapi.signal.SignalRegistries;
 import top.hibermod.ctdapi.traction.Traction;
@@ -52,6 +53,25 @@ public final class CtdScript {
     public CtdScript(IEventBus modBus) {
         instance = this;
         this.scriptRoot = FMLPaths.CONFIGDIR.get().resolve("ctd").resolve("scripts");
+
+        // 方块必须在注册事件里进注册表：先跑脚本收集定义，再挂注册监听。
+        loadStartupScripts();
+        top.hibermod.ctdscript.content.ScriptBlocks.attach(modBus);
+
+        // 美术资源：把脚本的 assets/ 复制成资源包，并为每个方块合成模型 JSON。
+        // 必须在资源加载之前——也就是现在（构造期）。
+        try {
+            java.nio.file.Path pack = top.hibermod.ctdscript.content.ScriptPack.materialize(
+                FMLPaths.CONFIGDIR.get().resolve("ctd"));
+            if (pack != null) {
+                boolean ok = top.hibermod.ctdscript.content.ScriptPack.installIntoResourcepacks(
+                    FMLPaths.GAMEDIR.get(), pack);
+                System.out.println("[ctdscript] script resource pack: "
+                    + (ok ? "installed" : "NOT installed") + " -> " + pack);
+            }
+        } catch (Throwable t) {
+            System.err.println("[ctdscript] cannot build script resource pack: " + t);
+        }
 
         modBus.addListener(this::onCommonSetup);
         modBus.addListener(this::onLoadComplete);
@@ -120,23 +140,47 @@ public final class CtdScript {
         Traction.Builtin.bootstrap();
         Interop.Known.bootstrap();
 
+        // 兜底：正常情况下构造函数已经加载过（幂等）
+        event.enqueueWork(() -> {
+            try {
+                loadStartupScripts();
+            } catch (Throwable t) {
+                System.err.println("[ctdscript] scripting unavailable: " + t);
+            }
+        });
+    }
+
+    /**
+     * 启动期加载脚本（幂等）。
+     *
+     * <h2>为什么必须最早跑</h2>
+     * 脚本可以注册**方块**，而方块只能在 {@code RegisterEvent} 期间进入注册表。
+     * 注册事件发生在所有模组构造之后、{@code FMLCommonSetupEvent} 之前，
+     * 所以加载必须早于它——否则 {@code block.register(...)} 收集到的定义
+     * 永远不会变成真正的方块，而且**不会报错**。
+     */
+    public synchronized void loadStartupScripts() {
+        if (runtime != null) return;
+
         try {
             Files.createDirectories(scriptRoot);
         } catch (Exception e) {
             System.err.println("[ctdscript] cannot create script dir " + scriptRoot + ": " + e);
         }
 
-        event.enqueueWork(() -> {
-            try {
-                this.runtime = new ScriptRuntime();
-                this.lastReport = new ScriptLoader(runtime, scriptRoot).loadAll();
-                System.out.println("[ctdscript] " + lastReport.summary());
-            } catch (Throwable t) {
-                // 脚本层整体失败不能拖垮服务器：记录并继续，API 注册表保持内置状态
-                System.err.println("[ctdscript] scripting unavailable: " + t);
-                this.runtime = null;
-            }
-        });
+        try {
+            this.runtime = new ScriptRuntime();
+            this.lastReport = new ScriptLoader(runtime, scriptRoot).loadAll();
+            System.out.println("[ctdscript] " + lastReport.summary());
+        } catch (Throwable t) {
+            // 脚本层整体失败不能拖垮服务器：记录并继续，API 注册表保持内置状态
+            System.err.println("[ctdscript] scripting unavailable: " + t);
+            this.runtime = null;
+        } finally {
+            // 无论成功与否都封存：之后的注册一律拒绝，避免「半套定义」进注册表
+            ContentRegistry.seal();
+            System.out.println("[ctdscript] content sealed: " + ContentRegistry.summary());
+        }
     }
 
     private void onLoadComplete(FMLLoadCompleteEvent event) {
@@ -165,7 +209,23 @@ public final class CtdScript {
                     }
                     return r.success() ? r.report().ok() : 0;
                 }))
-                .then(Commands.literal("list").executes(ctx -> {
+                .then(Commands.literal("content").executes(ctx -> {
+                    var src = ctx.getSource();
+                    src.sendSuccess(() -> Component.literal("CTD script content: "
+                        + top.hibermod.ctdscript.content.ContentRegistry.summary()
+                        + (top.hibermod.ctdscript.content.ContentRegistry.isSealed()
+                            ? " (sealed)" : " (open)")), false);
+                    for (var b : top.hibermod.ctdscript.content.ContentRegistry.blocks()) {
+                        boolean ok = top.hibermod.ctdscript.content.ScriptBlocks.isRegistered(b);
+                        src.sendSuccess(() -> Component.literal("  block " + b.id()
+                            + " texture=" + b.texture() + (ok ? " [registered]" : " [MISSING]")), false);
+                    }
+                    for (var h : top.hibermod.ctdscript.content.ContentRegistry.huds()) {
+                        src.sendSuccess(() -> Component.literal("  hud   " + h.id()
+                            + " every " + h.intervalTicks() + "t"), false);
+                    }
+                    return top.hibermod.ctdscript.content.ContentRegistry.blocks().size();
+                }))                .then(Commands.literal("list").executes(ctx -> {
                     var entries = ApiCatalog.entries();
                     ctx.getSource().sendSuccess(
                         () -> Component.literal("CTD registry: " + entries.size() + " entries"), false);
@@ -178,8 +238,7 @@ public final class CtdScript {
                     var r = lastReport;
                     ctx.getSource().sendSuccess(
                         () -> Component.literal(r == null ? "no load report" : r.summary()), false);
-                    return r == null ? 0 : r.ok();
-                }))
+                    return r == null ? 0 : r.ok();                }))
                 .then(Commands.literal("stats").executes(ctx -> {
                     int n = 0;
                     for (var id : top.hibermod.ctdapi.DispatchKernels.registeredIds()) {
