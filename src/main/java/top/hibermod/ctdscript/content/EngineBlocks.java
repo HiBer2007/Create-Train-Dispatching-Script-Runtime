@@ -170,8 +170,18 @@ public final class EngineBlocks {
      * <p>三种设备共用一块方块，是为了让「设备」这个概念只有一个实现；
      * 型号在放置那一刻写进方块实体，之后拆装、存档都跟着走。
      */
-    private static final class KindedDeviceItem extends BlockItem {
+    /** 放置时能说出自己是哪种设备的物品。 */
+    public interface DeviceItem {
+        DeviceKind deviceKind();
+    }
+
+    private static final class KindedDeviceItem extends BlockItem implements DeviceItem {
         private final DeviceKind kind;
+
+        @Override
+        public DeviceKind deviceKind() {
+            return kind;
+        }
 
         KindedDeviceItem(DeviceKind kind) {
             super(net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(ONBOARD_DISPLAY),

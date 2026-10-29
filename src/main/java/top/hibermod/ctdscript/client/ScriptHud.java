@@ -50,9 +50,42 @@ public final class ScriptHud {
         PanelState(HudDefinition definition) {
             this.definition = definition;
         }
+
+        /** 本帧图元的垂直范围 [minY, maxY]；没有图元返回 null。 */
+        double[] verticalBounds() {
+            double min = Double.MAX_VALUE;
+            double max = -Double.MAX_VALUE;
+
+            for (HudCanvas.Primitive p : canvas.primitives()) {
+                double top;
+                double bottom;
+                if (p instanceof HudCanvas.Text text) {
+                    top = text.y();
+                    bottom = text.y() + 9 * text.scale();
+                } else if (p instanceof HudCanvas.Rect rect) {
+                    top = rect.y();
+                    bottom = rect.y() + rect.height();
+                } else if (p instanceof HudCanvas.Image image) {
+                    top = image.y();
+                    bottom = image.y() + image.height();
+                } else if (p instanceof HudCanvas.ProgressBar bar) {
+                    top = bar.y();
+                    bottom = bar.y() + bar.height();
+                } else {
+                    continue;
+                }
+                min = Math.min(min, top);
+                max = Math.max(max, bottom);
+            }
+
+            return min > max ? null : new double[] { min, max };
+        }
     }
 
     private static final List<PanelState> PANELS = new ArrayList<>();
+
+    /** 面板之间的垂直间距（像素）。 */
+    private static final double PANEL_GAP = 6.0;
 
     private static boolean initialised;
     private static long refreshCount;
@@ -73,6 +106,10 @@ public final class ScriptHud {
         GuiGraphics gg = event.getGuiGraphics();
         long gameTime = mc.level.getGameTime();
 
+        // 自动排布：把可见面板自上而下堆起来，谁也不压谁。
+        // 脚本仍按自己的坐标画，引擎只负责整体平移。
+        double cursorY = 6.0;
+
         for (PanelState panel : PANELS) {
             // 面板声明了「需要哪种车载设备」就只在该设备存在时出现：
             // 没装 ATP 的车不该看到移动授权，正如现实一样
@@ -84,7 +121,19 @@ public final class ScriptHud {
                 refresh(panel, state);
                 panel.lastUpdate = gameTime;
             }
-            draw(gg, mc, panel);
+            // 计算这块面板自己的垂直范围，把它挪到 cursorY
+            double[] bounds = panel.verticalBounds();
+            if (bounds != null) {
+                float shift = (float) (cursorY - bounds[0]);
+                gg.pose().pushPose();
+                gg.pose().translate(0f, shift, 0f);
+                draw(gg, mc, panel);
+                gg.pose().popPose();
+
+                cursorY += (bounds[1] - bounds[0]) + PANEL_GAP;
+            } else {
+                draw(gg, mc, panel);
+            }
         }
     }
 

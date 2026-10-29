@@ -25,6 +25,14 @@ public final class CtdNetwork {
         registrar.playToClient(HudPrefPayload.TYPE, HudPrefPayload.STREAM_CODEC,
             HudPrefPayload::handle);
 
+        // 信号制度 GUI：一进一出
+        registrar.playToClient(top.hibermod.ctdscript.net.SignalPayloads.Open.TYPE,
+            top.hibermod.ctdscript.net.SignalPayloads.Open.STREAM_CODEC,
+            top.hibermod.ctdscript.net.SignalPayloads.Open::handle);
+        registrar.playToServer(top.hibermod.ctdscript.net.SignalPayloads.Set.TYPE,
+            top.hibermod.ctdscript.net.SignalPayloads.Set.STREAM_CODEC,
+            top.hibermod.ctdscript.net.SignalPayloads.Set::handle);
+
         // 服务端推来的真实车速（Create 只在有人操控时同步，松手就断流）
         registrar.playToClient(top.hibermod.ctdapi.net.TrainFeedPayload.TYPE,
             top.hibermod.ctdapi.net.TrainFeedPayload.STREAM_CODEC,

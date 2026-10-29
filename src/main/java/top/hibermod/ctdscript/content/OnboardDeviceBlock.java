@@ -46,6 +46,24 @@ public class OnboardDeviceBlock extends Block implements EntityBlock {
         registerDefaultState(stateDefinition.any().setValue(KIND, DeviceKind.SPEEDOMETER));
     }
 
+    /**
+     * 放置时的型号直接由**手里的物品**决定。
+     *
+     * <p>在 {@code place()} 之后再改方块状态是不可靠的：往构造物上放方块时，
+     * 世界坐标那一步可能根本不存在，于是型号留在默认值（速度表）——
+     * 表现就是「装了 ATP，出现的却是速度表」。
+     * 放置前定状态是唯一在所有路径上都成立的时机。
+     */
+    @Override
+    public BlockState getStateForPlacement(net.minecraft.world.item.context.BlockPlaceContext ctx) {
+        DeviceKind kind = DeviceKind.SPEEDOMETER;
+        var stack = ctx.getItemInHand();
+        if (stack != null && stack.getItem() instanceof EngineBlocks.DeviceItem deviceItem) {
+            kind = deviceItem.deviceKind();
+        }
+        return defaultBlockState().setValue(KIND, kind);
+    }
+
     @Override
     protected void createBlockStateDefinition(
             net.minecraft.world.level.block.state.StateDefinition.Builder<Block, BlockState> builder) {

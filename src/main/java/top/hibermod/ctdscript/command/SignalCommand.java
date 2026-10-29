@@ -35,7 +35,8 @@ public final class SignalCommand {
             .then(Commands.literal("system")
                 .then(Commands.argument("id", StringArgumentType.greedyString())
                     .executes(SignalCommand::assign)))
-            .then(Commands.literal("show").executes(SignalCommand::show));
+            .then(Commands.literal("show").executes(SignalCommand::show))
+            .then(Commands.literal("gui").executes(SignalCommand::gui));
     }
 
     private static int assign(CommandContext<CommandSourceStack> ctx) {
@@ -63,6 +64,44 @@ public final class SignalCommand {
         ctx.getSource().sendSuccess(() -> Component.literal(
             "signal system -> " + (systemId == null ? "none" : systemId.toString())), false);
         return 1;
+    }
+
+    /** 打开选择界面：玩家不用记制度 id。 */
+    private static int gui(CommandContext<CommandSourceStack> ctx) {
+        var player = ctx.getSource().getPlayer();
+        if (player == null) {
+            ctx.getSource().sendFailure(Component.literal("must be run by a player"));
+            return 0;
+        }
+
+        var holder = aimed(player);
+        if (holder == null) {
+            ctx.getSource().sendFailure(Component.literal("aim at a signal (within 8 blocks)"));
+            return 0;
+        }
+
+        // 取 id 需要边点对象本身；从图里反查太绕，直接用反射读它的 id 字段
+        java.util.UUID signalId = idOf(holder);
+        if (signalId == null) {
+            ctx.getSource().sendFailure(Component.literal("cannot read signal id"));
+            return 0;
+        }
+
+        String current = SignalSystemHolder.systemOf(holder);
+        if (player instanceof net.minecraft.server.level.ServerPlayer sp) {
+            sp.connection.send(new top.hibermod.ctdscript.net.SignalPayloads.Open(
+                signalId, current));
+        }
+        return 1;
+    }
+
+    private static java.util.UUID idOf(SignalSystemHolder holder) {
+        try {
+            Object id = holder.getClass().getField("id").get(holder);
+            return id instanceof java.util.UUID uuid ? uuid : null;
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     private static int show(CommandContext<CommandSourceStack> ctx) {
