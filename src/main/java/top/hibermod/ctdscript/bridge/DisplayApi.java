@@ -59,6 +59,33 @@ public final class DisplayApi {
         return true;
     }
 
+    /**
+     * 按**列车**写它车上的显示板。
+     *
+     * <p>车内显示器不该让脚本自己去算「那块板子在世界哪个坐标」——
+     * 车一动坐标就变了。按车 id 写才是它的语义。
+     *
+     * @return 是否写到（false = 没这列车 / 这列车没装显示板）
+     */
+    @HostAccess.Export
+    public boolean train(String trainId, List<String> lines) {
+        if (trainId == null || trainId.isBlank()) return false;
+
+        var train = com.simibubi.create.Create.RAILWAYS.trains.get(java.util.UUID.fromString(trainId));
+        if (train == null) return false;
+
+        for (var carriage : train.carriages) {
+            var entity = carriage.anyAvailableEntity();
+            if (entity == null) continue;
+            if (top.hibermod.ctdscript.content.ContraptionBoards.set(
+                    (ServerLevel) entity.level(), entity,
+                    new ArrayList<>(lines == null ? List.of() : lines))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** 便捷写法：主世界。 */
     @HostAccess.Export
     public boolean set(int x, int y, int z, List<String> lines) {

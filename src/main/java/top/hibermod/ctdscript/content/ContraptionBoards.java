@@ -66,6 +66,26 @@ public final class ContraptionBoards {
         return true;
     }
 
+    /** 给车上所有显示板绑定数据源。 */
+    public static boolean bindSource(ServerLevel level, AbstractContraptionEntity entity,
+                                     String source) {
+        if (entity == null || entity.getContraption() == null) return false;
+
+        int written = 0;
+        for (Map.Entry<BlockPos, StructureBlockInfo> e
+                : entity.getContraption().getBlocks().entrySet()) {
+            StructureBlockInfo info = e.getValue();
+            if (!(info.state().getBlock() instanceof DisplayBoardBlock)) continue;
+
+            CompoundTag nbt = info.nbt() == null ? new CompoundTag() : info.nbt().copy();
+            nbt.putString("Source", source == null ? "" : source);
+
+            ContraptionDataWriter.write(entity, e.getKey(),
+                new StructureBlockInfo(info.pos(), info.state(), nbt));
+            written++;
+        }
+        return written > 0;
+    }
     private static ListTag toList(List<String> lines) {
         ListTag list = new ListTag();
         if (lines != null) {

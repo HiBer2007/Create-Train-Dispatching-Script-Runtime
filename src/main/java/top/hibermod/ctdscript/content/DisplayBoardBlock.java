@@ -25,4 +25,18 @@ public class DisplayBoardBlock extends Block implements EntityBlock {
     public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
         return new DisplayBoardBlockEntity(pos, state);
     }
+
+    /** 服务端每刻回调：显示板在这里**主动**把内容拉下来。 */
+    @Nullable
+    @Override
+    public <T extends BlockEntity> net.minecraft.world.level.block.entity.BlockEntityTicker<T> getTicker(
+            net.minecraft.world.level.Level level, BlockState state,
+            net.minecraft.world.level.block.entity.BlockEntityType<T> type) {
+        if (level.isClientSide) return null;
+        return (lvl, pos, st, be) -> {
+            if (be instanceof DisplayBoardBlockEntity board) {
+                DisplayBoardBlockEntity.pullTick(lvl, pos, st, board);
+            }
+        };
+    }
 }
