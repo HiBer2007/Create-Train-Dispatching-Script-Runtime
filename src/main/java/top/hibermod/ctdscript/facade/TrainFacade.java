@@ -74,6 +74,12 @@ public final class TrainFacade {
         return state.manuallyDriven();
     }
 
+    /** 车头所在边的稳定 id；脚本用它判断「某段是不是被占用」。 */
+    @HostAccess.Export
+    public String leading_edge() {
+        return state.leadingEdge() == null ? "" : state.leadingEdge().encode();
+    }
+
     @HostAccess.Export
     public double odometer() {
         return state.odometer();

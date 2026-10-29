@@ -34,11 +34,18 @@ public final class FrameInput {
             trains.add(new TrainFacade(state, energy));
         }
 
+        // 信号机 → 它守护的边：脚本要据此判断「这段被占了吗」
+        java.util.Map<java.util.UUID, String> edgeOfSignal = new java.util.HashMap<>();
+        for (top.hibermod.ctdapi.Topology.SignalSite site : ctx.topology().signals()) {
+            if (site.edge() != null) edgeOfSignal.put(site.id(), site.edge().encode());
+        }
+
         for (FrameContext.SignalState s : ctx.signalStates()) {
             signals.add(List.of(
                 s.signalId().toString(),
                 s.side().name(),
-                s.aspectId() == null ? "" : s.aspectId().toString()));
+                s.aspectId() == null ? "" : s.aspectId().toString(),
+                edgeOfSignal.getOrDefault(s.signalId(), "")));
         }
 
         for (FrameContext.SwitchState s : ctx.switchStates()) {

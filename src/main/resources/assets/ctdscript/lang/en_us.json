@@ -3,5 +3,6 @@
   "block.ctdscript.onboard_display": "Onboard Display",
   "block.ctdscript.onboard_display.on": "Onboard display: indicator ON",
   "block.ctdscript.onboard_display.off": "Onboard display: indicator OFF",
-  "block.ctdscript.display_board": "Display Board"
+  "block.ctdscript.display_board": "Display Board",
+  "create.display_source.ctdscript.cbtc": "CBTC Movement Authority"
 }

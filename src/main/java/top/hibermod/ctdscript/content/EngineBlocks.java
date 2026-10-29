@@ -98,6 +98,13 @@ public final class EngineBlocks {
                 net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(DISPLAY_BOARD),
                 new Item.Properties()));
 
+        } else if (event.getRegistryKey().equals(
+                com.simibubi.create.api.registry.CreateRegistries.DISPLAY_SOURCE)) {
+            // 复用 Create 的 DisplayLink：我们只提供数据，显示交给辉光管/告示牌
+            event.register(com.simibubi.create.api.registry.CreateRegistries.DISPLAY_SOURCE,
+                ResourceLocation.fromNamespaceAndPath("ctdscript", "cbtc"),
+                CbtcDisplaySource::new);
+
         } else if (event.getRegistryKey().equals(Registries.CREATIVE_MODE_TAB)) {
             tab = CreativeModeTab.builder()
                 .title(Component.translatable("itemGroup.ctdscript.content"))
