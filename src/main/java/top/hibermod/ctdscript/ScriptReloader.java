@@ -65,6 +65,7 @@ public final class ScriptReloader {
             // 换 id 之后旧的那份会永远留在注册表里，继续用绑在
             // 已关闭 Python 运行时上的对象执行（表现为日志里两个内核同时 active）。
             top.hibermod.ctdscript.bridge.KernelApi.INSTANCE.reset();
+        top.hibermod.ctdscript.bridge.BroadcastApi.INSTANCE.reset();
             top.hibermod.ctdscript.bridge.AtoApi.INSTANCE.reset();
 
             int removed = ScriptRegistry.removeAll(snapshot);

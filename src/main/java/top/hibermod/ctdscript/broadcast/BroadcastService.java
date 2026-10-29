@@ -74,7 +74,7 @@ public final class BroadcastService {
             synchronized (this) {
                 noHandler++;
             }
-            System.out.println("[ctdscript] broadcast " + message.event().key()
+            BroadcastLog.write("broadcast " + message.event().key()
                 + " has no script text; skipped");
             return null;
         }
@@ -88,7 +88,7 @@ public final class BroadcastService {
                 noVoice++;
             }
             // 一条声音都没出：必须留下痕迹，不能安静地丢掉
-            System.out.println("[ctdscript] broadcast " + finalMessage.summary()
+            BroadcastLog.write("broadcast " + finalMessage.summary()
                 + " had no available voice source");
         }
         return voice;
@@ -105,7 +105,7 @@ public final class BroadcastService {
 
         for (Value handler : list) {
             try {
-                Value result = handler.execute(message);
+                Value result = handler.execute(new ScriptBroadcast(message));
                 if (result != null && result.isString()) {
                     String s = result.asString();
                     if (s != null && !s.isBlank()) return s;

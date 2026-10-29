@@ -27,7 +27,7 @@ public final class LogVoiceSource implements VoiceSource {
 
     @Override
     public boolean speak(BroadcastMessage message) {
-        System.out.println("[ctdscript] (voice:log) " + message.summary());
+        BroadcastLog.write("(voice:log) " + message.summary());
         return true;
     }
 

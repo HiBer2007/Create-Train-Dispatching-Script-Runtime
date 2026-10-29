@@ -58,6 +58,11 @@ public final class CtdScript {
         loadStartupScripts();
         top.hibermod.ctdscript.content.ScriptBlocks.attach(modBus);
         top.hibermod.ctdscript.content.EngineBlocks.attach(modBus);
+
+        // 兜底语音源：真声源都不可用时至少把文案记下来，不让广播静默消失
+        top.hibermod.ctdscript.broadcast.BroadcastLog.configure(
+            FMLPaths.CONFIGDIR.get().resolve("ctd"));
+        BROADCAST.chain().register(new top.hibermod.ctdscript.broadcast.LogVoiceSource());
         top.hibermod.ctdscript.content.EngineBlocks.registerInteractions();
 
         // 美术资源：把脚本的 assets/ 复制成资源包，并为每个方块合成模型 JSON。
@@ -206,11 +211,56 @@ public final class CtdScript {
             top.hibermod.ctdscript.client.OnboardDeviceRenderer::new);
     }
 
+    /** 广播服务：事件模型 + 语音源链。全局一份，重载只清监听不清音源。 */
+    private static final top.hibermod.ctdscript.broadcast.BroadcastService BROADCAST =
+        new top.hibermod.ctdscript.broadcast.BroadcastService();
+
+    public static top.hibermod.ctdscript.broadcast.BroadcastService broadcastService() {
+        return BROADCAST;
+    }
+
     private void onRegisterCommands(RegisterCommandsEvent event) {
         LiteralArgumentBuilder<net.minecraft.commands.CommandSourceStack> root =
             Commands.literal("ctd")
                 .requires(src -> src.hasPermission(2))
-                .then(Commands.literal("reload").executes(ctx -> {
+                .then(Commands.literal("broadcast")
+                    .executes(ctx -> {
+                        ctx.getSource().sendSuccess(
+                            () -> Component.literal(BROADCAST.status()), false);
+                        return 1;
+                    })
+                    .then(Commands.literal("emit")
+                        .then(Commands.argument("event", com.mojang.brigadier.arguments.StringArgumentType.word())
+                            .executes(ctx -> {
+                                String key = com.mojang.brigadier.arguments.StringArgumentType
+                                    .getString(ctx, "event");
+                                var ev = top.hibermod.ctdscript.broadcast.BroadcastEvent.byKey(key);
+                                if (ev == null) {
+                                    ctx.getSource().sendFailure(Component.literal(
+                                        "unknown event: " + key));
+                                    return 0;
+                                }
+                                String voice = BROADCAST.emit(
+                                    new top.hibermod.ctdscript.broadcast.BroadcastMessage(
+                                        ev, "train", "T600", "测试站", "2", 0, null));
+                                ctx.getSource().sendSuccess(() -> Component.literal(
+                                    voice == null ? "no voice source could speak it"
+                                                  : "spoken by: " + voice), false);
+                                return 1;
+                            })))
+                    .then(Commands.literal("say")
+                        .then(Commands.argument("text", com.mojang.brigadier.arguments.StringArgumentType.greedyString())
+                            .executes(ctx -> {
+                                String text = com.mojang.brigadier.arguments.StringArgumentType
+                                    .getString(ctx, "text");
+                                String voice = BROADCAST.emit(
+                                    new top.hibermod.ctdscript.broadcast.BroadcastMessage(
+                                        top.hibermod.ctdscript.broadcast.BroadcastEvent.APPROACHING,
+                                        "train", "", "", "", 0, text));
+                                ctx.getSource().sendSuccess(() -> Component.literal(
+                                    voice == null ? "no voice source" : "spoken by: " + voice), false);
+                                return 1;
+                            }))))                .then(Commands.literal("reload").executes(ctx -> {
                     var r = reloadScripts();
                     ctx.getSource().sendSuccess(() -> Component.literal(r.message()), false);
                     if (!r.success()) {

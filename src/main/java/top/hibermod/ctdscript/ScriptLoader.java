@@ -29,7 +29,8 @@ public final class ScriptLoader {
         List.of("signal", "device", "timetable", "block", "hud");
 
     /** 算法类：可热重载。 */
-    public static final java.util.List<String> ALGORITHM_DIRS = List.of("kernel", "ato");
+    public static final java.util.List<String> ALGORITHM_DIRS =
+        List.of("kernel", "ato", "broadcast");
 
     /** 完整加载顺序：定义先行，算法依赖定义的 id。 */
     private static final java.util.List<String> ORDER =
