@@ -25,7 +25,12 @@ public final class CtdNetwork {
         registrar.playToClient(HudPrefPayload.TYPE, HudPrefPayload.STREAM_CODEC,
             HudPrefPayload::handle);
 
-        // 信号制度 GUI：一进一出
+        // 信号机当前语义：服务端推、客户端只读
+        registrar.playToClient(top.hibermod.ctdscript.net.SignalAspectPayload.TYPE,
+            top.hibermod.ctdscript.net.SignalAspectPayload.STREAM_CODEC,
+            top.hibermod.ctdscript.net.SignalAspectPayload::handle);
+
+        // 信号制度 GUI：一进一出'
         registrar.playToClient(top.hibermod.ctdscript.net.SignalPayloads.Open.TYPE,
             top.hibermod.ctdscript.net.SignalPayloads.Open.STREAM_CODEC,
             top.hibermod.ctdscript.net.SignalPayloads.Open::handle);

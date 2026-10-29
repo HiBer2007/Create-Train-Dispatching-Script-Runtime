@@ -103,6 +103,7 @@ public final class CtdScript {
 
         NeoForge.EVENT_BUS.addListener(this::onRegisterCommands);
         NeoForge.EVENT_BUS.addListener(this::onServerStopping);
+        NeoForge.EVENT_BUS.addListener(this::onServerTick);
     }
 
     /** 取当前实例（命令与宿主联动用）。 */
@@ -368,4 +369,36 @@ public final class CtdScript {
             runtime = null;
         }
     }
+    /** 每 10 刻把信号机语义推一次；有变化才发。 */
+    private void onServerTick(net.neoforged.neoforge.event.tick.ServerTickEvent.Post event) {
+        long now = event.getServer().getTickCount();
+        if (now - lastAspectPush < 10) return;
+        lastAspectPush = now;
+
+        var snapshot = top.hibermod.ctdapi.status.SignalStates.snapshot();
+        var entries = new java.util.ArrayList<
+            top.hibermod.ctdscript.net.SignalAspectPayload.Entry>(snapshot.size());
+        var ids = new StringBuilder();
+        for (var e : snapshot.entrySet()) {
+            entries.add(new top.hibermod.ctdscript.net.SignalAspectPayload.Entry(
+                e.getKey(), e.getValue()));
+            ids.append(e.getKey()).append('=').append(e.getValue()).append(';');
+        }
+
+        String signature = ids.toString();
+        if (signature.equals(lastAspectSignature)) return;      // 没变化就不发
+        lastAspectSignature = signature;
+
+        var payload = new top.hibermod.ctdscript.net.SignalAspectPayload(entries);
+        for (var player : event.getServer().getPlayerList().getPlayers()) {
+            try {
+                player.connection.send(payload);
+            } catch (Throwable ignored) {
+                // 客户端没装：没必要每 10 刻刷一次栈
+            }
+        }
+    }
+
+    private long lastAspectPush;
+    private String lastAspectSignature = "";
 }

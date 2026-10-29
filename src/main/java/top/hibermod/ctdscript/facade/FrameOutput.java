@@ -103,6 +103,10 @@ public final class FrameOutput {
         UUID id = requireId(signalId, "signal id");
         if (id == null) return;
 
+        // 记下这一面当前的语义：客户端按它画灯色与组合。
+        // 渲染读的是「世界现在长什么样」，不该去问内核要一次。
+        top.hibermod.ctdapi.status.SignalStates.put(id, aspectId);
+
         Topology.SignalSide s;
         try {
             s = Topology.SignalSide.valueOf(side.toUpperCase(java.util.Locale.ROOT));
