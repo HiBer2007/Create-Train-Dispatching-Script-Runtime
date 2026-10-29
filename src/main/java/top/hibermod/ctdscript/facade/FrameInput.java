@@ -80,6 +80,34 @@ public final class FrameInput {
         return signals;
     }
 
+    /**
+     * 查询某列车装了哪些车载设备（speedometer / cbtc_atp）。
+     *
+     * 设备是车上的方块，属于世界状态；遥测只带每帧变化的数。
+     * 只有服务端读得到（内核就跑在服务端）；拿不到返回空列表，
+     * 含义是「没有设备」，于是该车按降级处理——与现实一致。
+     */
+    @HostAccess.Export
+    public java.util.List<String> devices_of(String trainId) {
+        try {
+            java.util.UUID id = java.util.UUID.fromString(trainId);
+            var train = com.simibubi.create.Create.RAILWAYS.trains.get(id);
+            if (train == null || train.carriages.isEmpty()) return java.util.List.of();
+
+            java.util.List<String> found = new java.util.ArrayList<>();
+            for (var carriage : train.carriages) {
+                var entity = carriage.anyAvailableEntity();
+                if (entity == null) continue;
+                for (var kind : top.hibermod.ctdscript.content.TrainDevices.of(entity)) {
+                    if (!found.contains(kind.id())) found.add(kind.id());
+                }
+            }
+            return found;
+        } catch (Throwable t) {
+            return java.util.List.of();
+        }
+    }
+
     /** 某信号机某面的当前语义 id；未知返回空串。 */
     @HostAccess.Export
     public String aspect_of(String signalId, String side) {

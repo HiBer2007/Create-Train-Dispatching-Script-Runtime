@@ -1,24 +1,46 @@
-# CBTC 使用的信号机 —— 复用 Create 已有的信号方块，只是给它一套「CBTC 制度」。
+# CBTC signal head -- two-lamp combination coding
 #
-# 三显示：红（停车）/ 黄（注意）/ 绿（允许）。
-# 没有新方块：玩家放的就是 Create 的信号机，我们提供语义与机型。
+# Why combinations: only red/yellow/green exist, but a moving-block line needs to
+# convey four or five grades of "how good is the line ahead". The trick is two
+# lamps lit at once, so the pair encodes the gradient.
 #
-# 这个文件属于**启动期定义**，热重载不会生效（注册表已经关了）。
+# Wayside lamps are a fallback for degraded or non-CBTC trains. In normal CBTC
+# operation the driver's authority is on the cab display and the lineside head may
+# legitimately stay dark.
 
 from ctd import signal
 
-# 机型：三灯，红灯在第 0 槽、黄第 1、绿第 2
-wayside = signal.type("ctd", "cbtc_wayside", "ctd:cbtc")
-wayside.lamp(signal.RED).lamp(signal.YELLOW).lamp(signal.GREEN)
-wayside.expresses(signal.STOP, 0)
-wayside.expresses(signal.CAUTION, 1)
-wayside.expresses(signal.PROCEED, 2)
+CLEAR = signal.registerAspect("ctd", "clear", "无限制通行（绿-绿）", 1.00, "PROCEED")
+APPROACH_LIMITED = signal.registerAspect("ctd", "approach_limited", "注意限速（绿-黄）", 0.85, "CAUTION")
+APPROACH = signal.registerAspect("ctd", "approach", "准备停车（绿-红）", 0.55, "CAUTION")
+CAUTION_DIVERGING = signal.registerAspect("ctd", "caution_diverging", "侧向谨慎（黄-黄）", 0.35, "CAUTION")
+STOP = signal.registerAspect("ctd", "stop", "停车（红-红）", 0.00, "STOP")
+CALL_ON = signal.registerAspect("ctd", "call_on", "引导信号（红-黄）", 0.20, "CALL_ON")
+CBTC_MODE = signal.registerAspect("ctd", "cbtc_mode", "CBTC 模式（蓝）", 0.00, "DARK")
+SHUNT = signal.registerAspect("ctd", "shunt", "调车（白）", 0.30, "SHUNT")
+DARK = signal.registerAspect("ctd", "dark", "灭灯", 0.00, "DARK")
+
+# Two physical lamp positions. Each position can show any colour, which is what
+# makes "green over green" distinguishable from "green over yellow".
+wayside = signal.type("ctd", "cbtc_two_lamp", "ctd:cbtc")
+wayside.lamp(signal.GREEN).lamp(signal.RED)
+
+wayside.expressesColored(CLEAR, "green,green")
+wayside.expressesColored(APPROACH_LIMITED, "green,yellow")
+wayside.expressesColored(APPROACH, "green,red")
+wayside.expressesColored(CAUTION_DIVERGING, "yellow,yellow")
+wayside.expressesColored(STOP, "red,red")
+wayside.expressesColored(CALL_ON, "red,yellow")
+wayside.expressesColored(CBTC_MODE, "blue")
+wayside.expresses(DARK)
+
 wayside_id = wayside.register()
 
-# 制度：包含三种语义，默认落到上面那个机型
-cbtc = signal.system("ctd", "cbtc", "CBTC 移动闭塞")
-cbtc.palette(signal.RED, signal.YELLOW, signal.GREEN)
-cbtc.aspect(signal.STOP).aspect(signal.CAUTION).aspect(signal.PROCEED)
+cbtc = signal.system("ctd", "cbtc", "CBTC 移动闭塞（双灯组合）")
+cbtc.palette(signal.RED, signal.YELLOW, signal.GREEN, signal.BLUE, signal.WHITE)
+for a in (CLEAR, APPROACH_LIMITED, APPROACH, CAUTION_DIVERGING,
+          STOP, CALL_ON, CBTC_MODE, SHUNT, DARK):
+    cbtc.aspect(a)
 cbtc.type(wayside)
 cbtc.fallback(wayside)
 
