@@ -60,6 +60,11 @@ public final class CtdScript {
         top.hibermod.ctdscript.content.EngineBlocks.attach(modBus);
 
         // 兜底语音源：真声源都不可用时至少把文案记下来，不让广播静默消失
+        top.hibermod.ctdscript.broadcast.LocalSounds.scan(
+            FMLPaths.CONFIGDIR.get().resolve("ctd").resolve("assets"));
+        top.hibermod.ctdscript.broadcast.LocalSoundRegistry.attach(modBus);
+        BROADCAST.chain().register(new top.hibermod.ctdscript.broadcast.LocalVoiceSource());
+
         top.hibermod.ctdscript.broadcast.BroadcastLog.configure(
             FMLPaths.CONFIGDIR.get().resolve("ctd"));
         BROADCAST.chain().register(new top.hibermod.ctdscript.broadcast.LogVoiceSource());
@@ -214,6 +219,11 @@ public final class CtdScript {
     /** 广播服务：事件模型 + 语音源链。全局一份，重载只清监听不清音源。 */
     private static final top.hibermod.ctdscript.broadcast.BroadcastService BROADCAST =
         new top.hibermod.ctdscript.broadcast.BroadcastService();
+
+    /** 当前服务端实例（本地音频播放需要它）。客户端/未启动时为 null。 */
+    public static net.minecraft.server.MinecraftServer server() {
+        return net.neoforged.neoforge.server.ServerLifecycleHooks.getCurrentServer();
+    }
 
     public static top.hibermod.ctdscript.broadcast.BroadcastService broadcastService() {
         return BROADCAST;

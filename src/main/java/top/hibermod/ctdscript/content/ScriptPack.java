@@ -72,10 +72,13 @@ public final class ScriptPack {
             writeBlockAssets(outAssets, def);
         }
 
-        // ③ 自动翻译：脚本不写 lang 也不会看到裸键
+        // ③ 音频映射：只有 SoundEvent 而没有 sounds.json 会「静默无声」
+        ScriptSounds.write(outAssets);
+
+        // ④ 自动翻译：脚本不写 lang 也不会看到裸键
         ScriptLang.write(outAssets);
 
-        // ④ pack.mcmeta
+        // ⑤ pack.mcmeta
         String meta = """
             {
               "pack": {
