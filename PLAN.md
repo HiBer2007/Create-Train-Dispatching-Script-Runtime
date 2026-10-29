@@ -297,4 +297,4 @@ L1 (标志进镜像) ──► L2 (区间限速) ──► L3 (脚本动作)
 | I | ✅ 完成 | 图元（子区域贴图 / 旋转指针 / 进度条 / long 颜色）、只读数据绑定、**四层闸门**（坐车 → 车有设备 → 我开了 → 渲染）、按人可见（渲染器）；实测脚本能画出指针式速度表 |
 | J | 🟡 进行中 | 事件模型（8 类）、语音源链 + 降级、脚本 API（`ctd.broadcast.on/emit`）、`/ctd broadcast`、UTF-8 独立日志均已完成并实测；**本地音频源已完成**（扫描 ogg → 注册 SoundEvent → 合成 sounds.json → 播放，降级实测通过）；**PIS 自动触发已完成**（宿主判定相位 → `OperationFeed.trainAtStation` → 脚本 → 音源，合成事件实测）；**待做**：TTS/模型外部源 |
 | K | 🟡 进行中 | K1 通用方块实体、K2 车载设备（含 `MovingInteractionBehaviour` 车上右键、按玩家偏好、按人渲染）已完成；**待做**：K3 车上动态文字方块、K4 站台设备 |
-| L | ❌ | 未开始 |
+| L | 🟡 进行中 | L1 限速/鸣笛进 `Restrictions` 并**真的压到车上**（`/ctd host restrict`，实测 `limited to 30 km/h`）；**待做**：L2 区间限速按距离段生效、L3 脚本动作（鸣笛/开关门）与脚本读取 `ctx.restrictions()` |
