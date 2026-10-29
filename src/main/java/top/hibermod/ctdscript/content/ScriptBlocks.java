@@ -1,29 +1,45 @@
 package top.hibermod.ctdscript.content;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import net.minecraft.core.registries.Registries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
+import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.RegisterEvent;
 
 /**
- * 把脚本声明的方块真正注册进 Minecraft。
+ * 把脚本声明的方块真正注册进 Minecraft：方块、方块实体、物品、创造栏。
  *
  * <h2>时序</h2>
  * 脚本在**模组构造期**跑完，收集成 {@link BlockDefinition}；
- * 本类在随后的 {@code RegisterEvent} 里把每个定义变成一个真实的 {@code Block}。
- * 中间只传数据——注册表关掉之后就再也加不进去了。
+ * 本类在随后的 {@code RegisterEvent} 里把每个定义变成注册表里的东西。
+ * 注册表关掉之后就再也加不进去了，所以中间只传数据。
  *
- * <h2>方块属性从哪来</h2>
- * 全部来自脚本声明（硬度、发光、碰撞），其余用固定值：石质音效。
- * 纹理**不在这里**——纹理走虚拟资源包，由 {@code ScriptPackResources}
- * 合成 blockstate / 模型并直读脚本目录里的 png。
+ * <h2>为什么要注册四样东西</h2>
+ * <table border="1">
+ *   <tr><th>注册表</th><th>不注册会怎样</th></tr>
+ *   <tr><td>{@code BLOCK}</td><td>方块根本不存在</td></tr>
+ *   <tr><td>{@code BLOCK_ENTITY_TYPE}</td><td>能放下但不能存状态、不能响应</td></tr>
+ *   <tr><td>{@code ITEM}</td><td>创造模式里拿不到，只能 {@code /setblock}</td></tr>
+ *   <tr><td>{@code CREATIVE_MODE_TAB}</td><td>能拿到，但埋在搜索里，玩家找不到</td></tr>
+ * </table>
+ * 再加上 {@link ScriptPack} 生成的资源包，才是一个「完整」的方块。
  */
 public final class ScriptBlocks {
+
+    private static BlockEntityType<ScriptBlockEntity> beType;
+    private static CreativeModeTab tab;
 
     private ScriptBlocks() {}
 
@@ -31,21 +47,65 @@ public final class ScriptBlocks {
         modBus.addListener(ScriptBlocks::onRegister);
     }
 
+    /** 供 {@link ScriptBlock#newBlockEntity} 使用；注册完成后才有值。 */
+    public static BlockEntityType<ScriptBlockEntity> blockEntityType() {
+        return beType;
+    }
+
+    public static CreativeModeTab tab() {
+        return tab;
+    }
+
     private static void onRegister(RegisterEvent event) {
         if (ContentRegistry.blocks().isEmpty()) return;
 
         if (event.getRegistryKey().equals(Registries.BLOCK)) {
             for (BlockDefinition def : ContentRegistry.blocks()) {
-                event.register(Registries.BLOCK, def.id(), () -> new Block(properties(def)));
+                event.register(Registries.BLOCK, def.id(),
+                    () -> new ScriptBlock(properties(def), def));
             }
+
+        } else if (event.getRegistryKey().equals(Registries.BLOCK_ENTITY_TYPE)) {
+            List<Block> blocks = new ArrayList<>();
+            for (BlockDefinition def : ContentRegistry.blocks()) {
+                Block b = net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(def.id());
+                if (b != null) blocks.add(b);
+            }
+            if (blocks.isEmpty()) return;
+            beType = BlockEntityType.Builder.of(ScriptBlockEntity::new, blocks.toArray(new Block[0]))
+                .build(null);
+            event.register(Registries.BLOCK_ENTITY_TYPE,
+                ResourceLocation.fromNamespaceAndPath("ctdscript", "script_block"), () -> beType);
+
         } else if (event.getRegistryKey().equals(Registries.ITEM)) {
             for (BlockDefinition def : ContentRegistry.blocks()) {
                 event.register(Registries.ITEM, def.id(), () -> new BlockItem(
-                    net.minecraft.core.registries.BuiltInRegistries.BLOCK
-                        .get(def.id()).defaultBlockState().getBlock(),
+                    net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(def.id()),
                     new Item.Properties()));
             }
+
+        } else if (event.getRegistryKey().equals(Registries.CREATIVE_MODE_TAB)) {
+            tab = CreativeModeTab.builder()
+                .title(Component.translatable("itemGroup.ctdscript.content"))
+                .icon(ScriptBlocks::firstItemStack)
+                .displayItems((params, output) -> {
+                    for (BlockDefinition def : ContentRegistry.blocks()) {
+                        Item item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(def.id());
+                        if (item != null) output.accept(new ItemStack(item));
+                    }
+                })
+                .build();
+            event.register(Registries.CREATIVE_MODE_TAB,
+                ResourceLocation.fromNamespaceAndPath("ctdscript", "content"), () -> tab);
         }
+    }
+
+    private static ItemStack firstItemStack() {
+        for (BlockDefinition def : ContentRegistry.blocks()) {
+            Item item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(def.id());
+            if (item != null) return new ItemStack(item);
+        }
+        return new ItemStack(net.minecraft.world.item.Items.BARRIER);
     }
 
     private static BlockBehaviour.Properties properties(BlockDefinition def) {
@@ -59,7 +119,6 @@ public final class ScriptBlocks {
         return p;
     }
 
-    /** 引擎自检：某个 id 的方块是否真的进了注册表。 */
     public static boolean isRegistered(BlockDefinition def) {
         return net.minecraft.core.registries.BuiltInRegistries.BLOCK.containsKey(def.id());
     }
@@ -70,7 +129,7 @@ public final class ScriptBlocks {
         for (BlockDefinition def : ContentRegistry.blocks()) {
             if (isRegistered(def)) ok++;
         }
-        return "registeredBlocks=" + ok + "/" + ContentRegistry.blocks().size();
+        return "blocks=" + ok + "/" + ContentRegistry.blocks().size()
+            + " beType=" + (beType != null) + " tab=" + (tab != null);
     }
-
 }

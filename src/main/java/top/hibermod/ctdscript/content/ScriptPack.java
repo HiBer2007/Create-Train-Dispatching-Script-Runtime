@@ -72,7 +72,10 @@ public final class ScriptPack {
             writeBlockAssets(outAssets, def);
         }
 
-        // ③ pack.mcmeta
+        // ③ 自动翻译：脚本不写 lang 也不会看到裸键
+        ScriptLang.write(outAssets);
+
+        // ④ pack.mcmeta
         String meta = """
             {
               "pack": {
