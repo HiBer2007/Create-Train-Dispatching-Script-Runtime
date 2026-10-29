@@ -47,9 +47,27 @@ public final class DisplayCommand {
             return 0;
         }
 
-        HitResult hit = player.pick(6.0, 0, false);
+        HitResult hit = player.pick(8.0, 0, false);
+
+        // ① 指着车上的显示板：数据在构造物快照里，世界坐标没有方块实体
+        if (hit instanceof net.minecraft.world.phys.EntityHitResult ehr
+                && ehr.getEntity() instanceof com.simibubi.create.content.contraptions
+                    .AbstractContraptionEntity ace) {
+            if (!top.hibermod.ctdscript.content.ContraptionBoards.set(
+                    (net.minecraft.server.level.ServerLevel) player.level(), ace, lines)) {
+                ctx.getSource().sendFailure(Component.literal(
+                    "that contraption has no display board"));
+                return 0;
+            }
+            ctx.getSource().sendSuccess(() -> Component.literal(
+                "display set on contraption (" + lines.size() + " line(s))"), false);
+            return lines.size();
+        }
+
+        // ② 指着地上的显示板
         if (!(hit instanceof BlockHitResult bhr) || hit.getType() != HitResult.Type.BLOCK) {
-            ctx.getSource().sendFailure(Component.literal("aim at a display board (within 6 blocks)"));
+            ctx.getSource().sendFailure(Component.literal(
+                "aim at a display board or a train carrying one (within 8 blocks)"));
             return 0;
         }
 

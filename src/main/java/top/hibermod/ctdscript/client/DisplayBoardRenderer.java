@@ -29,8 +29,13 @@ import top.hibermod.ctdscript.content.DisplayBoardBlockEntity;
  */
 public class DisplayBoardRenderer implements BlockEntityRenderer<DisplayBoardBlockEntity> {
 
-    /** 文字距方块表面的偏移，小一点避免 z-fighting。 */
-    private static final float SURFACE = 1.002f;
+    /**
+     * 文字距方块表面的偏移。
+     *
+     * <p>贴太近会被方块自身的面裁掉（侧面看时靠近的那半边消失，这是实测现象），
+     * 所以离面远一点，配合 {@code SEE_THROUGH} 一起用。
+     */
+    private static final float SURFACE_OFFSET = 0.02f;
 
     private final Font font;
 
@@ -46,7 +51,7 @@ public class DisplayBoardRenderer implements BlockEntityRenderer<DisplayBoardBlo
 
         pose.pushPose();
         // 画在朝北那一面上，稍微外移
-        pose.translate(0.5f, 0, 0.5f - SURFACE / 2);
+        pose.translate(0.5f, 0, -SURFACE_OFFSET);
         // 让文字面向北侧观察者
         pose.mulPose(com.mojang.math.Axis.YP.rotationDegrees(180f));
 
@@ -64,7 +69,7 @@ public class DisplayBoardRenderer implements BlockEntityRenderer<DisplayBoardBlo
             pose.translate(-width / 2f, y, 0f);
             pose.scale(scale, -scale, scale);   // y 取负：方块坐标是向下为正的屏幕系
             font.drawInBatch(Component.literal(text), 0, 0, 0xFFFFFFFF, false,
-                pose.last().pose(), buffers, Font.DisplayMode.NORMAL,
+                pose.last().pose(), buffers, Font.DisplayMode.SEE_THROUGH,
                 0x55000000, packedLight);
             pose.popPose();
             y -= 0.24f;
@@ -74,6 +79,13 @@ public class DisplayBoardRenderer implements BlockEntityRenderer<DisplayBoardBlo
 
     @Override
     public boolean shouldRenderOffScreen(DisplayBoardBlockEntity be) {
-        return false;
+        // 构造物上的方块实体离摄像机可能很远，不能因为「看起来在屏幕外」就被裁掉
+        return true;
+    }
+
+    @Override
+    public net.minecraft.world.phys.AABB getRenderBoundingBox(DisplayBoardBlockEntity be) {
+        // 文字可能超出方块一点，给渲染剔除留余量
+        return new net.minecraft.world.phys.AABB(be.getBlockPos()).inflate(0.5);
     }
 }
