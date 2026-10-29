@@ -47,17 +47,42 @@ public class SignalConfiguratorItem extends Item {
             return InteractionResult.CONSUME;
         }
 
-        var boundary = signal.edgePoint == null ? null : signal.edgePoint.getEdgePoint();
+        // 三种失败要分开说：它们的修法完全不同
+        if (signal.edgePoint == null) {
+            report(player, "no targeting behaviour", pos);
+            player.displayClientMessage(
+                Component.translatable("item.ctdscript.signal_configurator.unbound"), true);
+            return InteractionResult.CONSUME;
+        }
+
+        Object boundary = signal.edgePoint.getEdgePoint();
+        if (boundary == null) {
+            report(player, "edgePoint is null (signal not on a track)", pos);
+            player.displayClientMessage(
+                Component.translatable("item.ctdscript.signal_configurator.unbound"), true);
+            return InteractionResult.CONSUME;
+        }
+
         SignalSystemHolder holder = SignalSystemHolder.of(boundary);
         if (holder == null) {
-            // 信号机还没绑定到轨道上：这时它没有边点，也就没有归属可言
+            // 走到这里说明 mixin 没生效：边点对象没实现接口
+            report(player, "boundary is " + boundary.getClass().getName()
+                + " which does NOT implement SignalSystemHolder (mixin missing)", pos);
             player.displayClientMessage(
                 Component.translatable("item.ctdscript.signal_configurator.unbound"), true);
             return InteractionResult.CONSUME;
         }
 
         player.connection.send(new SignalPayloads.Open(
-            boundary.id, SignalSystemHolder.systemOf(holder)));
+            ((com.simibubi.create.content.trains.signal.SignalBoundary) boundary).id,
+            SignalSystemHolder.systemOf(holder)));
         return InteractionResult.CONSUME;
+    }
+
+    /** 把失败原因同时写进日志——玩家看不到聊天栏那一行的时候还能查日志。 */
+    private static void report(ServerPlayer player, String why, net.minecraft.core.BlockPos pos) {
+        System.out.println("[ctdscript] signal configurator at " + pos.toShortString()
+            + " failed: " + why);
+        player.displayClientMessage(Component.literal("CTD: " + why), false);
     }
 }
