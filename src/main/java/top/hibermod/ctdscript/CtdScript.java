@@ -54,12 +54,8 @@ public final class CtdScript {
         instance = this;
         this.scriptRoot = FMLPaths.CONFIGDIR.get().resolve("ctd").resolve("scripts");
 
-        // 方块必须在注册事件里进注册表：先跑脚本收集定义，再挂注册监听。
-        loadStartupScripts();
-        top.hibermod.ctdscript.content.ScriptBlocks.attach(modBus);
-        top.hibermod.ctdscript.content.EngineBlocks.attach(modBus);
-
-        // 兜底语音源：真声源都不可用时至少把文案记下来，不让广播静默消失
+        // ① 服务先就位：脚本在**加载期**就可能调用广播与拓展，
+        //    所以这些必须在 loadStartupScripts() 之前完成。
         top.hibermod.ctdscript.broadcast.LocalSounds.scan(
             FMLPaths.CONFIGDIR.get().resolve("ctd").resolve("assets"));
         top.hibermod.ctdscript.broadcast.LocalSoundRegistry.attach(modBus);
@@ -67,10 +63,24 @@ public final class CtdScript {
 
         top.hibermod.ctdscript.broadcast.BroadcastLog.configure(
             FMLPaths.CONFIGDIR.get().resolve("ctd"));
+
+        // 兜底语音源：真声源都不可用时至少把文案记下来，不让广播静默消失
         BROADCAST.chain().register(new top.hibermod.ctdscript.broadcast.LogVoiceSource());
 
         // 宿主报「车接近/停稳/离站」，这里接上广播：装好即响，无需写胶水
         top.hibermod.ctdscript.broadcast.StationEvents.attach();
+
+        // 拓展口：别的模组往这里登记，脚本通过 ctd.ext 使用
+        top.hibermod.ctdscript.bridge.Extensions.register(
+            top.hibermod.ctdscript.bridge.EngineExtension.NAMESPACE,
+            top.hibermod.ctdscript.bridge.EngineExtension.INSTANCE);
+
+        // ② 跑脚本：方块定义在这里收集（注册事件之前必须收集完）
+        loadStartupScripts();
+
+        // ③ 注册监听：此时定义已经齐了
+        top.hibermod.ctdscript.content.ScriptBlocks.attach(modBus);
+        top.hibermod.ctdscript.content.EngineBlocks.attach(modBus);
         top.hibermod.ctdscript.content.EngineBlocks.registerInteractions();
 
         // 美术资源：把脚本的 assets/ 复制成资源包，并为每个方块合成模型 JSON。
@@ -102,6 +112,12 @@ public final class CtdScript {
 
     public Path scriptRoot() {
         return scriptRoot;
+    }
+
+    /** 静态入口：拓展对象要读加载报告（实例方法同名会冲突，故用 report）。 */
+    public static ScriptLoader.Report report() {
+        CtdScript local = instance;
+        return local == null ? null : local.lastReport;
     }
 
     public ScriptLoader.Report lastReport() {

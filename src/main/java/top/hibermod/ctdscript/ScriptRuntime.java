@@ -44,6 +44,7 @@ public final class ScriptRuntime implements AutoCloseable {
         _mod.operation = _ctd_operation
         _mod.content   = _ctd_content
         _mod.broadcast = _ctd_broadcast
+        _mod.ext       = _ctd_ext
         sys.modules['ctd'] = _mod
         del _mod
         """;
@@ -86,6 +87,7 @@ public final class ScriptRuntime implements AutoCloseable {
         bindings.putMember("_ctd_operation", top.hibermod.ctdscript.bridge.OperationApi.INSTANCE);
         bindings.putMember("_ctd_content", top.hibermod.ctdscript.bridge.ContentApi.INSTANCE);
         bindings.putMember("_ctd_broadcast", top.hibermod.ctdscript.bridge.BroadcastApi.INSTANCE);
+        bindings.putMember("_ctd_ext", top.hibermod.ctdscript.bridge.Extensions.ScriptView.INSTANCE);
 
         context.eval(Source.newBuilder("python", BOOTSTRAP, "<ctd-bootstrap>").buildLiteral());
 
