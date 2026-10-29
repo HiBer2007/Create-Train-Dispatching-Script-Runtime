@@ -52,6 +52,9 @@ neoForge {
 }
 
 dependencies {
+    // Create 只在**编译期**需要：HUD 要读列车状态（CarriageContraptionEntity / Train）。
+    // 不打包、不传递——运行时由玩家装的 Create 提供，与 ctdhost 同一份。
+    compileOnly files("../ctdhost/libs/create-1.21.1-6.0.11-312.jar")
     // 当成命名模块，模组模块读不到它 —— 这些副本已剥离 module-info。
 
     // CTD API：契约层。目前是本地 jar，发布到 maven 后换成坐标。
