@@ -6,6 +6,9 @@ MIN_MA = 2.0
 LOG_EVERY = 100
 BIG_MA = 10000.0
 
+STOP_ASPECT = "ctdapi:stop"
+PROCEED_ASPECT = "ctdapi:proceed"
+
 
 def movement_authority(me, ahead):
     if ahead is None:
@@ -18,6 +21,32 @@ def movement_authority(me, ahead):
 class Cbtc:
     def __init__(self):
         self._frame = 0
+
+    def _drive_signals(self, ctx, out, trains):
+        """Wayside lamps show section occupancy only.
+
+        The authority in CBTC lives on board; the lamp exists so a person on the
+        ground can read the section at a glance.
+        """
+        try:
+            occupied = set()
+            for t in trains:
+                edge = t.leading_edge()
+                if edge:
+                    occupied.add(edge)
+
+            for sig in ctx.signals():
+                if len(sig) < 4:
+                    continue
+                signal_id, side, current, edge = sig[0], sig[1], sig[2], sig[3]
+                if not edge:
+                    continue
+                want = STOP_ASPECT if edge in occupied else PROCEED_ASPECT
+                if current != want:
+                    out.aspect(signal_id, side, want)
+        except Exception as e:
+            # A broken lamp must not take speed control with it.
+            print("[cbtc] signal update failed: %s" % e, flush=True)
 
     def on_frame(self, ctx, out):
         trains = ctx.trains()
@@ -38,6 +67,8 @@ class Cbtc:
             cap = min(train.max_speed(), train.speed_for(ma)) if ma > MIN_MA else 0.0
             out.proceed(train.id(), ma, cap)
             summary.append("%s ma=%.0f cap=%.2f" % (train.name() or train.id()[:6], ma, cap))
+        self._drive_signals(ctx, out, ordered)
+
         if self._frame % LOG_EVERY == 0 and summary:
             print("[cbtc] " + " | ".join(summary), flush=True)
 
