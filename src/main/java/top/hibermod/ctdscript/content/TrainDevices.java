@@ -32,9 +32,10 @@ public final class TrainDevices {
         if (contraption == null) return out;
 
         for (StructureBlockInfo info : contraption.getBlocks().values()) {
-            if (!(info.state().getBlock() instanceof OnboardDeviceBlock)) continue;
-            String kind = info.nbt() == null ? "" : info.nbt().getString("Kind");
-            out.add(DeviceKind.byIdOrSpeedometer(kind));
+            // 型号由**方块本身**决定：注册表里的事实，不需要读状态或 NBT
+            if (info.state().getBlock() instanceof OnboardDeviceBlock device) {
+                out.add(device.kind());
+            }
         }
         return out;
     }

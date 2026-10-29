@@ -19,56 +19,28 @@ import top.hibermod.ctdscript.net.HudPrefPayload;
 import top.hibermod.ctdscript.server.PlayerHudPrefs;
 
 /**
- * 车载设备：**这列车具备显示仪表的能力**。
+ * 车载设备方块。每种设备是**独立的方块**。
  *
- * <h2>它不是什么</h2>
- * 它不是「某个人要不要看」的开关。开关属于人，见 {@link PlayerHudPrefs}。
- * 如果把这层混进方块，就会出现「司机一开，全车乘客屏幕上都蹦出仪表」——
- * 乘客不想看，也不该看到司机那套读数。
+ * <h2>为什么不用「一个方块 + 型号字段」</h2>
+ * 那需要放置钩子把型号写进状态或 NBT，中间任何一环没接上，
+ * 现象都是「装了 ATP，引擎以为是速度表」。
+ * 独立方块把「这是哪种设备」变成注册表里的事实，没有推断环节。
  *
- * <h2>用法</h2>
- * 装在车厢上（或先放地上再和车厢一起组装）。玩家右键它，
- * 切换的是**自己**的显示开关，别的乘客不受影响。
+ * <h2>右键</h2>
+ * 切换**这个玩家**看不看指示器：车是大家共用的，眼睛是各人自己的。
  */
 public class OnboardDeviceBlock extends Block implements EntityBlock {
 
-    /**
-     * 设备型号放在**方块状态**里，而不是只放方块实体。
-     *
-     * <p>原因有两条：外观要按型号区分（模型靠状态选变体），
-     * 而构造物同步的是方块状态 + NBT——状态里有的东西，客户端一定能看到。
-     */
-    public static final net.minecraft.world.level.block.state.properties.EnumProperty<DeviceKind> KIND =
-        net.minecraft.world.level.block.state.properties.EnumProperty.create("kind", DeviceKind.class);
+    private final DeviceKind kind;
 
-    public OnboardDeviceBlock(Properties properties) {
+    public OnboardDeviceBlock(Properties properties, DeviceKind kind) {
         super(properties);
-        registerDefaultState(stateDefinition.any().setValue(KIND, DeviceKind.SPEEDOMETER));
+        this.kind = kind;
     }
 
-    /**
-     * 放置时的型号直接由**手里的物品**决定。
-     *
-     * <p>在 {@code place()} 之后再改方块状态是不可靠的：往构造物上放方块时，
-     * 世界坐标那一步可能根本不存在，于是型号留在默认值（速度表）——
-     * 表现就是「装了 ATP，出现的却是速度表」。
-     * 放置前定状态是唯一在所有路径上都成立的时机。
-     */
-    @Override
-    public BlockState getStateForPlacement(net.minecraft.world.item.context.BlockPlaceContext ctx) {
-        DeviceKind kind = DeviceKind.SPEEDOMETER;
-        var stack = ctx.getItemInHand();
-        if (stack != null && stack.getItem() instanceof EngineBlocks.DeviceItem deviceItem) {
-            kind = deviceItem.deviceKind();
-        }
-        return defaultBlockState().setValue(KIND, kind);
-    }
-
-    @Override
-    protected void createBlockStateDefinition(
-            net.minecraft.world.level.block.state.StateDefinition.Builder<Block, BlockState> builder) {
-        super.createBlockStateDefinition(builder);
-        builder.add(KIND);
+    /** 这块方块是哪一种设备。由方块本身决定。 */
+    public DeviceKind kind() {
+        return kind;
     }
 
     @Nullable
@@ -81,15 +53,13 @@ public class OnboardDeviceBlock extends Block implements EntityBlock {
     protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos,
                                                Player player, BlockHitResult hit) {
         if (level.isClientSide) {
-            return InteractionResult.SUCCESS;      // 客户端只回手，不做决定
+            return InteractionResult.SUCCESS;
         }
         if (!(level instanceof ServerLevel serverLevel) || !(player instanceof ServerPlayer sp)) {
             return InteractionResult.PASS;
         }
 
         boolean now = PlayerHudPrefs.get(serverLevel.getServer()).toggle(sp.getUUID());
-
-        // 立刻把结果发回本人；别的玩家收不到，因为他们没按
         sp.connection.send(new HudPrefPayload(now));
 
         sp.displayClientMessage(

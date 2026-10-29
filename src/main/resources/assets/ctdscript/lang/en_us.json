@@ -1,10 +1,9 @@
 {
   "itemGroup.ctdscript.content": "CTD Content",
-  "block.ctdscript.onboard_display": "Onboard Device",
-  "block.ctdscript.onboard_display.on": "Onboard display: indicator ON",
-  "block.ctdscript.onboard_display.off": "Onboard display: indicator OFF",
-  "item.ctdscript.onboard_speedometer": "Onboard Device: Speedometer",
-  "item.ctdscript.onboard_cbtc_atp": "Onboard Device: CBTC ATP",
+  "block.ctdscript.onboard_speedometer": "Onboard Device: Speedometer",
+  "block.ctdscript.onboard_cbtc_atp": "Onboard Device: CBTC ATP",
+  "block.ctdscript.onboard_display.on": "Indicator ON",
+  "block.ctdscript.onboard_display.off": "Indicator OFF",
   "block.ctdscript.display_board": "Display Board",
   "create.display_source.ctdscript.cbtc": "CBTC Movement Authority"
 }

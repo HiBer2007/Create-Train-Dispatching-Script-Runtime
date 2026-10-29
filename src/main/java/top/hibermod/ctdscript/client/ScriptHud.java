@@ -364,14 +364,15 @@ public final class ScriptHud {
             var contraption = cce.getContraption();
             if (contraption == null) return false;
 
-            net.minecraft.world.level.block.Block device =
-                top.hibermod.ctdscript.content.EngineBlocks.onboardBlock();
-            if (device == null) return false;
+            // 任意一种车载设备都算「这车有仪表能力」
+            var devices = top.hibermod.ctdscript.content.EngineBlocks.onboardBlocks();
+            if (devices.isEmpty()) return false;
 
             for (var info : contraption.getBlocks().values()) {
-                if (info.state().is(device)) return true;
-            }
-            return false;
+                for (var device : devices) {
+                    if (info.state().is(device)) return true;
+                }
+            }            return false;
         }
     }
 }

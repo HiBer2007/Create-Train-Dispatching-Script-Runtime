@@ -129,6 +129,12 @@ public final class SignalCommand {
      * <p>{@code SignalBlockEntity.edgePoint}（{@code TrackTargetingBehaviour}）
      * 上的 {@code getEdgePoint()} 才给出真正的边点对象——也就是我们要写属性的那个。
      */
+    /**
+     * 准星那架信号机的「所属制度」句柄。
+     *
+     * <p>直接强转成 Create 的类型，不走反射：反射的失败是不可见的
+     * （返回 null，界面就说「未瞄准」），而类型不对在这里是编译错误。
+     */
     private static SignalSystemHolder aimed(Player player) {
         var hit = player.pick(8.0, 0, false);
         if (!(hit instanceof BlockHitResult bhr) || hit.getType() != HitResult.Type.BLOCK) {
@@ -136,14 +142,11 @@ public final class SignalCommand {
         }
 
         var be = player.level().getBlockEntity(bhr.getBlockPos());
-        if (be == null) return null;
-
-        try {
-            Object targeting = be.getClass().getField("edgePoint").get(be);
-            Object boundary = targeting.getClass().getMethod("getEdgePoint").invoke(targeting);
-            return SignalSystemHolder.of(boundary);
-        } catch (Throwable t) {
+        if (!(be instanceof com.simibubi.create.content.trains.signal.SignalBlockEntity signal)) {
             return null;
         }
+
+        var boundary = signal.edgePoint == null ? null : signal.edgePoint.getEdgePoint();
+        return SignalSystemHolder.of(boundary);
     }
 }

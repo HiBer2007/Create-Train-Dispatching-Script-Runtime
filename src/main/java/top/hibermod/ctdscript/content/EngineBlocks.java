@@ -19,31 +19,25 @@ import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.RegisterEvent;
 
 /**
- * 引擎自带方块：车载设备，以及容纳它们的创造模式物品栏。
+ * 引擎自带的方块：车载设备（车辆仪表 / CBTC ATP）与显示板。
  *
- * <h2>为什么引擎要自带方块</h2>
- * HUD 的显示闸门需要「这列车装了设备、且设备被启用」这个事实。
- * 这个事实必须由**引擎自己的**方块承载——不能让脚本决定「什么算装了设备」，
- * 否则换个脚本 HUD 就时有时无，玩家无从判断。
+ * <h2>为什么每种设备是独立方块</h2>
+ * 型号若存在状态或 NBT 里，就必须有人在放置时把它写对。
+ * 那条链上有三处会出错（放置钩子、状态同步、构造物快照），
+ * 任何一处断了，现象都是「装了 ATP，引擎以为是速度表」。
  *
- * <h2>物品栏</h2>
- * 引擎方块与脚本方块放在**同一页**（{@code ctdscript:content}）。
- * 玩家不该关心「这个方块是脚本给的还是引擎给的」。
+ * <p>独立方块把它变成注册表里的事实：不同 id、不同模型、不同名字。
  */
 public final class EngineBlocks {
 
-    public static final ResourceLocation ONBOARD_DISPLAY =
-        ResourceLocation.fromNamespaceAndPath("ctdscript", "onboard_display");
+    public static final ResourceLocation ONBOARD_SPEEDOMETER =
+        ResourceLocation.fromNamespaceAndPath("ctdscript", "onboard_speedometer");
+
+    public static final ResourceLocation ONBOARD_CBTC_ATP =
+        ResourceLocation.fromNamespaceAndPath("ctdscript", "onboard_cbtc_atp");
 
     public static final ResourceLocation DISPLAY_BOARD =
         ResourceLocation.fromNamespaceAndPath("ctdscript", "display_board");
-
-    /** 速度表设备物品（放置同一个方块，型号不同）。 */
-    public static final ResourceLocation ITEM_SPEEDOMETER =
-        ResourceLocation.fromNamespaceAndPath("ctdscript", "onboard_speedometer");
-    /** CBTC 车载 ATP 物品。 */
-    public static final ResourceLocation ITEM_CBTC_ATP =
-        ResourceLocation.fromNamespaceAndPath("ctdscript", "onboard_cbtc_atp");
 
     private static BlockEntityType<OnboardDeviceBlockEntity> onboardType;
     private static BlockEntityType<DisplayBoardBlockEntity> displayType;
@@ -63,34 +57,63 @@ public final class EngineBlocks {
         return displayType;
     }
 
-    /** 显示板方块本体。 */
-    public static Block displayBoard() {
-        return net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(DISPLAY_BOARD);
-    }
-
     public static CreativeModeTab tab() {
         return tab;
     }
 
+    /** 全部车载设备方块（右键行为要逐个注册）。 */
+    public static List<Block> onboardBlocks() {
+        List<Block> out = new ArrayList<>(2);
+        Block speedometer = net.minecraft.core.registries.BuiltInRegistries.BLOCK
+            .get(ONBOARD_SPEEDOMETER);
+        Block atp = net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(ONBOARD_CBTC_ATP);
+        if (speedometer != null) out.add(speedometer);
+        if (atp != null) out.add(atp);
+        return out;
+    }
+
+    public static Block displayBoard() {
+        return net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(DISPLAY_BOARD);
+    }
+
+    /**
+     * 注册「车上右键」的行为。
+     *
+     * <p>必须在注册表填完之后调用：构造期调用只能拿到 air。
+     */
+    public static void registerInteractions() {
+        var registry = com.simibubi.create.api.behaviour.interaction
+            .MovingInteractionBehaviour.REGISTRY;
+
+        for (Block block : onboardBlocks()) {
+            registry.register(block, new OnboardDeviceInteraction());
+
+            var check = registry.get(block.defaultBlockState());
+            System.out.println("[ctdscript] onboard interaction for "
+                + net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(block)
+                + ": " + (check == null ? "NOT registered" : "ok"));
+        }
+    }
+
     private static void onRegister(RegisterEvent event) {
         if (event.getRegistryKey().equals(Registries.BLOCK)) {
+            event.register(Registries.BLOCK, ONBOARD_SPEEDOMETER, () -> new OnboardDeviceBlock(
+                deviceProperties(), DeviceKind.SPEEDOMETER));
+            event.register(Registries.BLOCK, ONBOARD_CBTC_ATP, () -> new OnboardDeviceBlock(
+                deviceProperties(), DeviceKind.CBTC_ATP));
+
             event.register(Registries.BLOCK, DISPLAY_BOARD, () -> new DisplayBoardBlock(
                 BlockBehaviour.Properties.of()
                     .strength(1.0f)
                     .sound(SoundType.METAL)
                     .noOcclusion()));
 
-            event.register(Registries.BLOCK, ONBOARD_DISPLAY, () -> new OnboardDeviceBlock(
-                BlockBehaviour.Properties.of()
-                    .strength(1.5f)
-                    .sound(SoundType.METAL)
-                    .noOcclusion()));
-
         } else if (event.getRegistryKey().equals(Registries.BLOCK_ENTITY_TYPE)) {
             onboardType = BlockEntityType.Builder.of(OnboardDeviceBlockEntity::new,
-                net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(ONBOARD_DISPLAY))
+                net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(ONBOARD_SPEEDOMETER),
+                net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(ONBOARD_CBTC_ATP))
                 .build(null);
-            event.register(Registries.BLOCK_ENTITY_TYPE, ONBOARD_DISPLAY, () -> onboardType);
+            event.register(Registries.BLOCK_ENTITY_TYPE, ONBOARD_SPEEDOMETER, () -> onboardType);
 
             displayType = BlockEntityType.Builder.of(DisplayBoardBlockEntity::new,
                 net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(DISPLAY_BOARD))
@@ -98,22 +121,18 @@ public final class EngineBlocks {
             event.register(Registries.BLOCK_ENTITY_TYPE, DISPLAY_BOARD, () -> displayType);
 
         } else if (event.getRegistryKey().equals(Registries.ITEM)) {
-            event.register(Registries.ITEM, ONBOARD_DISPLAY, () -> new BlockItem(
-                net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(ONBOARD_DISPLAY),
+            event.register(Registries.ITEM, ONBOARD_SPEEDOMETER, () -> new BlockItem(
+                net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(ONBOARD_SPEEDOMETER),
+                new Item.Properties()));
+            event.register(Registries.ITEM, ONBOARD_CBTC_ATP, () -> new BlockItem(
+                net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(ONBOARD_CBTC_ATP),
                 new Item.Properties()));
             event.register(Registries.ITEM, DISPLAY_BOARD, () -> new BlockItem(
                 net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(DISPLAY_BOARD),
                 new Item.Properties()));
 
-            // 同一个方块、不同型号：玩家在创造栏里看到的是两种设备
-            event.register(Registries.ITEM, ITEM_SPEEDOMETER,
-                () -> new KindedDeviceItem(DeviceKind.SPEEDOMETER));
-            event.register(Registries.ITEM, ITEM_CBTC_ATP,
-                () -> new KindedDeviceItem(DeviceKind.CBTC_ATP));
-
         } else if (event.getRegistryKey().equals(
                 com.simibubi.create.api.registry.CreateRegistries.DISPLAY_SOURCE)) {
-            // 复用 Create 的 DisplayLink：我们只提供数据，显示交给辉光管/告示牌
             event.register(com.simibubi.create.api.registry.CreateRegistries.DISPLAY_SOURCE,
                 ResourceLocation.fromNamespaceAndPath("ctdscript", "cbtc"),
                 CbtcDisplaySource::new);
@@ -121,20 +140,14 @@ public final class EngineBlocks {
         } else if (event.getRegistryKey().equals(Registries.CREATIVE_MODE_TAB)) {
             tab = CreativeModeTab.builder()
                 .title(Component.translatable("itemGroup.ctdscript.content"))
-                .icon(() -> new ItemStack(
-                    net.minecraft.core.registries.BuiltInRegistries.ITEM.get(ONBOARD_DISPLAY)))
+                .icon(EngineBlocks::icon)
                 .displayItems((params, output) -> {
-                    // 引擎方块先列，脚本方块跟后面：玩家不需要知道区别
-                    output.accept(new ItemStack(
-                        net.minecraft.core.registries.BuiltInRegistries.ITEM.get(ONBOARD_DISPLAY)));
-                    output.accept(new ItemStack(
-                        net.minecraft.core.registries.BuiltInRegistries.ITEM.get(DISPLAY_BOARD)));
-                    output.accept(new ItemStack(
-                        net.minecraft.core.registries.BuiltInRegistries.ITEM.get(ITEM_SPEEDOMETER)));
-                    output.accept(new ItemStack(
-                        net.minecraft.core.registries.BuiltInRegistries.ITEM.get(ITEM_CBTC_ATP)));
+                    accept(output, ONBOARD_SPEEDOMETER);
+                    accept(output, ONBOARD_CBTC_ATP);
+                    accept(output, DISPLAY_BOARD);
                     for (BlockDefinition def : ContentRegistry.blocks()) {
-                        Item item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(def.id());
+                        Item item = net.minecraft.core.registries.BuiltInRegistries.ITEM
+                            .get(def.id());
                         if (item != null) output.accept(new ItemStack(item));
                     }
                 })
@@ -144,99 +157,21 @@ public final class EngineBlocks {
         }
     }
 
-    /**
-     * 注册「车上右键」的行为。
-     *
-     * <p>必须在世界加载前完成——构造物落地时就会去 {@code interactors} 里查，
-     * 那时候注册表已经要齐了。
-     */
-    public static void registerInteractions() {
-        Block block = onboardBlock();
-        if (block == null) return;
-        com.simibubi.create.api.behaviour.interaction.MovingInteractionBehaviour.REGISTRY
-            .register(block, new OnboardDeviceInteraction());
-
-        // 自检：注册完立刻查一次。查不到就意味着「挂了但没生效」，
-        // 那种情况在游戏里表现为右键没反应，且不报错。
-        var check = com.simibubi.create.api.behaviour.interaction.MovingInteractionBehaviour
-            .REGISTRY.get(block.defaultBlockState());
-        System.out.println("[ctdscript] onboard interaction behaviour "
-            + (check == null ? "NOT registered" : "registered: " + check.getClass().getSimpleName()));
+    private static void accept(CreativeModeTab.Output output, ResourceLocation id) {
+        Item item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(id);
+        if (item != null) output.accept(new ItemStack(item));
     }
 
-    /**
-     * 放置时写入型号的设备物品。
-     *
-     * <p>三种设备共用一块方块，是为了让「设备」这个概念只有一个实现；
-     * 型号在放置那一刻写进方块实体，之后拆装、存档都跟着走。
-     */
-    /** 放置时能说出自己是哪种设备的物品。 */
-    public interface DeviceItem {
-        DeviceKind deviceKind();
+    private static ItemStack icon() {
+        Item item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(ONBOARD_CBTC_ATP);
+        return item == null ? new ItemStack(net.minecraft.world.item.Items.BARRIER)
+            : new ItemStack(item);
     }
 
-    private static final class KindedDeviceItem extends BlockItem implements DeviceItem {
-        private final DeviceKind kind;
-
-        @Override
-        public DeviceKind deviceKind() {
-            return kind;
-        }
-
-        KindedDeviceItem(DeviceKind kind) {
-            super(net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(ONBOARD_DISPLAY),
-                new Item.Properties());
-            this.kind = kind;
-        }
-
-        @Override
-        public net.minecraft.world.InteractionResult place(
-                net.minecraft.world.item.context.BlockPlaceContext ctx) {
-            var result = super.place(ctx);
-            if (result.consumesAction()) {
-                var pos = ctx.getClickedPos();
-
-                // 型号写进方块状态：外观随之变，构造物同步也带得走
-                var state = ctx.getLevel().getBlockState(pos);
-                if (state.hasProperty(OnboardDeviceBlock.KIND)) {
-                    ctx.getLevel().setBlock(pos,
-                        state.setValue(OnboardDeviceBlock.KIND, kind), 3);
-                }
-                if (ctx.getLevel().getBlockEntity(pos) instanceof OnboardDeviceBlockEntity be) {
-                    be.setKind(kind);
-                }
-            }
-            return result;
-        }
-
-        /**
-         * 名字按型号区分。
-         *
-         * <p>{@code BlockItem} 默认用**方块**的描述 id，
-         * 于是两种设备在创造栏里都叫「车载设备」——玩家分不出来。
-         * 这里直接给各自的翻译键。
-         */
-        @Override
-        public net.minecraft.network.chat.Component getName(
-                net.minecraft.world.item.ItemStack stack) {
-            return net.minecraft.network.chat.Component.translatable(kind.langKey());
-        }
-    }
-
-    /** 车载设备方块本体（客户端闸门要按它筛选构造物里的方块）。 */
-    public static Block onboardBlock() {
-        return net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(ONBOARD_DISPLAY);
-    }
-
-    /** 自检：车载设备方块是否进了注册表。 */
-    public static boolean onboardRegistered() {
-        return net.minecraft.core.registries.BuiltInRegistries.BLOCK.containsKey(ONBOARD_DISPLAY);
-    }
-
-    static List<Block> engineBlocks() {
-        List<Block> out = new ArrayList<>();
-        Block b = net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(ONBOARD_DISPLAY);
-        if (b != null) out.add(b);
-        return out;
+    private static BlockBehaviour.Properties deviceProperties() {
+        return BlockBehaviour.Properties.of()
+            .strength(1.5f)
+            .sound(SoundType.METAL)
+            .noOcclusion();
     }
 }
