@@ -7,11 +7,12 @@ import com.mojang.brigadier.context.CommandContext;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 
-import top.hibermod.ctdscript.server.SignalAssignments;
+import top.hibermod.ctdapi.signal.SignalSystemHolder;
 
 /**
  * {@code /ctd signal system <制度id>} —— 指定准星那架信号机服务于哪套信号制度。
@@ -20,7 +21,10 @@ import top.hibermod.ctdscript.server.SignalAssignments;
  * 一架信号机同时显示两套制度的状态，司机无法判断该信谁。
  * 现实中线路也是按制式分区设信号的。
  *
- * <p>不指定（{@code none}）表示「不归任何制度管」，内核不会去点亮它。
+ * <h2>数据存在哪</h2>
+ * 存在信号机自己身上（{@link SignalSystemHolder}，由宿主的 mixin 提供）。
+ * 这样它跟着拆装、存档、同步一起走；外挂表在信号机被拆掉之后只会留下脏数据，
+ * 而客户端永远读不到——「选了又变回去」就是这么来的。
  */
 public final class SignalCommand {
 
@@ -31,12 +35,7 @@ public final class SignalCommand {
             .then(Commands.literal("system")
                 .then(Commands.argument("id", StringArgumentType.greedyString())
                     .executes(SignalCommand::assign)))
-            .then(Commands.literal("list").executes(ctx -> {
-                var data = SignalAssignments.get(ctx.getSource().getServer());
-                ctx.getSource().sendSuccess(() -> Component.literal(
-                    "signals with a system: " + data.size()), false);
-                return data.size();
-            }));
+            .then(Commands.literal("show").executes(SignalCommand::show));
     }
 
     private static int assign(CommandContext<CommandSourceStack> ctx) {
@@ -46,45 +45,64 @@ public final class SignalCommand {
             return 0;
         }
 
-        String systemId = StringArgumentType.getString(ctx, "id").trim();
-        if (systemId.equalsIgnoreCase("none")) systemId = "";
+        String raw = StringArgumentType.getString(ctx, "id").trim();
+        ResourceLocation systemId = raw.equalsIgnoreCase("none") ? null
+            : ResourceLocation.tryParse(raw);
+        if (systemId == null && !raw.equalsIgnoreCase("none")) {
+            ctx.getSource().sendFailure(Component.literal("bad system id: " + raw));
+            return 0;
+        }
 
-        var hit = player.pick(8.0, 0, false);
-        if (!(hit instanceof BlockHitResult bhr) || hit.getType() != HitResult.Type.BLOCK) {
+        SignalSystemHolder holder = aimed(player);
+        if (holder == null) {
             ctx.getSource().sendFailure(Component.literal("aim at a signal (within 8 blocks)"));
             return 0;
         }
 
-        var be = player.level().getBlockEntity(bhr.getBlockPos());
-        java.util.UUID signalId = signalIdOf(be);
-        if (signalId == null) {
-            ctx.getSource().sendFailure(Component.literal("that block is not a signal"));
+        holder.ctd$setSignalSystem(systemId);
+        ctx.getSource().sendSuccess(() -> Component.literal(
+            "signal system -> " + (systemId == null ? "none" : systemId.toString())), false);
+        return 1;
+    }
+
+    private static int show(CommandContext<CommandSourceStack> ctx) {
+        Player player = ctx.getSource().getPlayer();
+        if (player == null) {
+            ctx.getSource().sendFailure(Component.literal("must be run by a player"));
             return 0;
         }
 
-        SignalAssignments.get(ctx.getSource().getServer()).assign(signalId, systemId);
+        SignalSystemHolder holder = aimed(player);
+        if (holder == null) {
+            ctx.getSource().sendFailure(Component.literal("aim at a signal"));
+            return 0;
+        }
 
-        String shown = systemId.isEmpty() ? "none" : systemId;
+        String id = SignalSystemHolder.systemOf(holder);
         ctx.getSource().sendSuccess(() -> Component.literal(
-            "signal " + signalId + " -> " + shown), false);
+            "this signal serves: " + (id.isEmpty() ? "none" : id)), false);
         return 1;
     }
 
     /**
-     * 从信号方块实体取边点 id。
+     * 准星那架信号机的「所属制度」句柄。
      *
-     * <p>{@code SignalBlockEntity.edgePoint} 是 {@code TrackTargetingBehaviour}，
-     * 取其中的边界对象再读 {@code id}。用反射是因为这一层会随 Create 版本变，
-     * 而我们要的东西只有「一个稳定 id」。
+     * <p>{@code SignalBlockEntity.edgePoint}（{@code TrackTargetingBehaviour}）
+     * 上的 {@code getEdgePoint()} 才给出真正的边点对象——也就是我们要写属性的那个。
      */
-    private static java.util.UUID signalIdOf(net.minecraft.world.level.block.entity.BlockEntity be) {
+    private static SignalSystemHolder aimed(Player player) {
+        var hit = player.pick(8.0, 0, false);
+        if (!(hit instanceof BlockHitResult bhr) || hit.getType() != HitResult.Type.BLOCK) {
+            return null;
+        }
+
+        var be = player.level().getBlockEntity(bhr.getBlockPos());
         if (be == null) return null;
+
         try {
             Object targeting = be.getClass().getField("edgePoint").get(be);
             Object boundary = targeting.getClass().getMethod("getEdgePoint").invoke(targeting);
-            if (boundary == null) return null;
-            Object id = boundary.getClass().getField("id").get(boundary);
-            return id instanceof java.util.UUID uuid ? uuid : null;
+            return SignalSystemHolder.of(boundary);
         } catch (Throwable t) {
             return null;
         }

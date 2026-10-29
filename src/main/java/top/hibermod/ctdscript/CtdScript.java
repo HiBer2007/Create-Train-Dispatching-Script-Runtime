@@ -262,6 +262,7 @@ public final class CtdScript {
                 .requires(src -> src.hasPermission(2))
                 .then(top.hibermod.ctdscript.command.DisplayCommand.build())
                 .then(top.hibermod.ctdscript.command.SignalCommand.build())
+                .then(top.hibermod.ctdscript.command.DeviceCommand.build())
                 .then(top.hibermod.ctdscript.command.FixInteractorsCommand.build())
                 .then(Commands.literal("broadcast")
                     .executes(ctx -> {

@@ -39,6 +39,21 @@ public class DisplayBoardRenderer implements BlockEntityRenderer<DisplayBoardBlo
 
     private final Font font;
 
+    /** 诊断计数：每块板子只报前几次，避免刷屏。 */
+    private static final java.util.Map<String, Integer> DIAG = new java.util.HashMap<>();
+
+    private static void diag(DisplayBoardBlockEntity be, String what) {
+        String key = be.getBlockPos().toShortString();
+        int n = DIAG.merge(key, 1, Integer::sum);
+        if (n > 3) return;
+
+        String levelName = be.getLevel() == null ? "null" : be.getLevel().getClass().getSimpleName();
+        System.out.println("[ctdscript] board render " + key + " " + what
+            + " lines=" + be.lines().size()
+            + " source=[" + be.source() + "]"
+            + " level=" + levelName);
+    }
+
     public DisplayBoardRenderer(BlockEntityRendererProvider.Context context) {
         this.font = context.getFont();
     }
@@ -47,6 +62,7 @@ public class DisplayBoardRenderer implements BlockEntityRenderer<DisplayBoardBlo
     public void render(DisplayBoardBlockEntity be, float partialTick, PoseStack pose,
                        MultiBufferSource buffers, int packedLight, int packedOverlay) {
         List<String> lines = be.lines();
+        diag(be, lines.isEmpty() ? "EMPTY" : "draw");
         if (lines.isEmpty()) return;
 
         pose.pushPose();

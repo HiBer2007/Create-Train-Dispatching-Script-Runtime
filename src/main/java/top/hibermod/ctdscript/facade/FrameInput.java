@@ -111,20 +111,26 @@ public final class FrameInput {
     /**
      * 这架信号机服务于哪套信号制度；未登记返回空串。
      *
-     * <p>内核必须先问这一句再决定要不要动它——一架信号机只属于一套制度，
-     * 否则司机无法判断该信哪套显示。
+     * <p>数据存在信号机自己身上（宿主 mixin 提供的 {@code SignalSystemHolder}），
+     * 所以客户端读到的和服务端一致——不存在「外挂表客户端看不见」的问题。
      */
     @HostAccess.Export
     public String system_of(String signalId) {
         try {
-            var server = net.neoforged.neoforge.server.ServerLifecycleHooks.getCurrentServer();
-            if (server == null) return "";
-            return top.hibermod.ctdscript.server.SignalAssignments.get(server)
-                .systemOf(java.util.UUID.fromString(signalId));
+            java.util.UUID id = java.util.UUID.fromString(signalId);
+            for (var graph : com.simibubi.create.Create.RAILWAYS.trackNetworks.values()) {
+                var point = graph.getPoint(
+                    com.simibubi.create.content.trains.graph.EdgePointType.SIGNAL, id);
+                if (point != null) {
+                    return top.hibermod.ctdapi.signal.SignalSystemHolder.systemOf(point);
+                }
+            }
+            return "";
         } catch (Throwable t) {
             return "";
         }
     }
+
     /** 某信号机某面的当前语义 id；未知返回空串。 */
     @HostAccess.Export
     public String aspect_of(String signalId, String side) {
