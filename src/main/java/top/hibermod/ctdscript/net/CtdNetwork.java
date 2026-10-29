@@ -24,5 +24,11 @@ public final class CtdNetwork {
         PayloadRegistrar registrar = event.registrar("1");
         registrar.playToClient(HudPrefPayload.TYPE, HudPrefPayload.STREAM_CODEC,
             HudPrefPayload::handle);
+
+        // 服务端推来的真实车速（Create 只在有人操控时同步，松手就断流）
+        registrar.playToClient(top.hibermod.ctdapi.net.TrainFeedPayload.TYPE,
+            top.hibermod.ctdapi.net.TrainFeedPayload.STREAM_CODEC,
+            (payload, ctx) -> ctx.enqueueWork(
+                () -> top.hibermod.ctdscript.client.TrainFeedCache.apply(payload)));
     }
 }
