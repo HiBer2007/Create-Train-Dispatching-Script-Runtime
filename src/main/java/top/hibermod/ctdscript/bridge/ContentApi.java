@@ -57,7 +57,20 @@ public final class ContentApi {
         if (tex == null) {
             throw new IllegalArgumentException("bad texture id for block " + id);
         }
-        ContentRegistry.addBlock(new BlockDefinition(id, tex, (float) hardness, light, solid));
+        ContentRegistry.addBlock(new BlockDefinition(id, tex, (float) hardness, light, solid, null));
+        return id.toString();
+    }
+
+    /** 注册一个方块，可指定显示名。 */
+    @HostAccess.Export
+    public String block(String namespace, String path, String texture,
+                        double hardness, int light, boolean solid, String displayName) {
+        ResourceLocation id = ResourceLocation.fromNamespaceAndPath(namespace, path);
+        ResourceLocation tex = ResourceLocation.tryParse(
+            (texture == null || texture.isBlank()) ? (namespace + ":block/" + path) : texture);
+        if (tex == null) throw new IllegalArgumentException("bad texture id for block " + id);
+        ContentRegistry.addBlock(new BlockDefinition(id, tex, (float) hardness, light, solid,
+            displayName));
         return id.toString();
     }
 

@@ -37,21 +37,21 @@ public final class HudCanvas {
     }
 
     @HostAccess.Export
-    public void text(double x, double y, String text, int color) {
+    public void text(double x, double y, String text, long color) {
         if (text == null || text.isEmpty()) return;
-        primitives.add(new Text((float) x, (float) y, text, color, 1f));
+        primitives.add(new Text((float) x, (float) y, text, (int) color, 1f));
     }
 
     @HostAccess.Export
-    public void text(double x, double y, String text, int color, double scale) {
+    public void text(double x, double y, String text, long color, double scale) {
         if (text == null || text.isEmpty()) return;
-        primitives.add(new Text((float) x, (float) y, text, color, (float) Math.max(0.25, scale)));
+        primitives.add(new Text((float) x, (float) y, text, (int) color, (float) Math.max(0.25, scale)));
     }
 
     @HostAccess.Export
-    public void rect(double x, double y, double width, double height, int color) {
+    public void rect(double x, double y, double width, double height, long color) {
         if (width <= 0 || height <= 0) return;
-        primitives.add(new Rect((float) x, (float) y, (float) width, (float) height, color));
+        primitives.add(new Rect((float) x, (float) y, (float) width, (float) height, (int) color));
     }
 
     /**
