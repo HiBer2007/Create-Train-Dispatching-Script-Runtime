@@ -1,5 +1,6 @@
 {
   "variants": {
-    "": { "model": "ctdscript:block/onboard_display" }
+    "kind=speedometer": { "model": "ctdscript:block/onboard_speedometer" },
+    "kind=cbtc_atp":    { "model": "ctdscript:block/onboard_cbtc_atp" }
   }
 }

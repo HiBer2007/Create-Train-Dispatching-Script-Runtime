@@ -32,8 +32,25 @@ import top.hibermod.ctdscript.server.PlayerHudPrefs;
  */
 public class OnboardDeviceBlock extends Block implements EntityBlock {
 
+    /**
+     * 设备型号放在**方块状态**里，而不是只放方块实体。
+     *
+     * <p>原因有两条：外观要按型号区分（模型靠状态选变体），
+     * 而构造物同步的是方块状态 + NBT——状态里有的东西，客户端一定能看到。
+     */
+    public static final net.minecraft.world.level.block.state.properties.EnumProperty<DeviceKind> KIND =
+        net.minecraft.world.level.block.state.properties.EnumProperty.create("kind", DeviceKind.class);
+
     public OnboardDeviceBlock(Properties properties) {
         super(properties);
+        registerDefaultState(stateDefinition.any().setValue(KIND, DeviceKind.SPEEDOMETER));
+    }
+
+    @Override
+    protected void createBlockStateDefinition(
+            net.minecraft.world.level.block.state.StateDefinition.Builder<Block, BlockState> builder) {
+        super.createBlockStateDefinition(builder);
+        builder.add(KIND);
     }
 
     @Nullable

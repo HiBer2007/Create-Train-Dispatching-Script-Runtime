@@ -261,6 +261,7 @@ public final class CtdScript {
             Commands.literal("ctd")
                 .requires(src -> src.hasPermission(2))
                 .then(top.hibermod.ctdscript.command.DisplayCommand.build())
+                .then(top.hibermod.ctdscript.command.SignalCommand.build())
                 .then(top.hibermod.ctdscript.command.FixInteractorsCommand.build())
                 .then(Commands.literal("broadcast")
                     .executes(ctx -> {

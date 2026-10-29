@@ -185,11 +185,31 @@ public final class EngineBlocks {
             var result = super.place(ctx);
             if (result.consumesAction()) {
                 var pos = ctx.getClickedPos();
+
+                // 型号写进方块状态：外观随之变，构造物同步也带得走
+                var state = ctx.getLevel().getBlockState(pos);
+                if (state.hasProperty(OnboardDeviceBlock.KIND)) {
+                    ctx.getLevel().setBlock(pos,
+                        state.setValue(OnboardDeviceBlock.KIND, kind), 3);
+                }
                 if (ctx.getLevel().getBlockEntity(pos) instanceof OnboardDeviceBlockEntity be) {
                     be.setKind(kind);
                 }
             }
             return result;
+        }
+
+        /**
+         * 名字按型号区分。
+         *
+         * <p>{@code BlockItem} 默认用**方块**的描述 id，
+         * 于是两种设备在创造栏里都叫「车载设备」——玩家分不出来。
+         * 这里直接给各自的翻译键。
+         */
+        @Override
+        public net.minecraft.network.chat.Component getName(
+                net.minecraft.world.item.ItemStack stack) {
+            return net.minecraft.network.chat.Component.translatable(kind.langKey());
         }
     }
 

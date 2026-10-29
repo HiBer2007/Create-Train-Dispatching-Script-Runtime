@@ -11,7 +11,7 @@ package top.hibermod.ctdscript.content;
  * <p>同一列车可以装多种设备：速度表负责速度，ATP 负责信号预告与交路。
  * 它们的 HUD 各自独立、可以同时显示，互不覆盖。
  */
-public enum DeviceKind {
+public enum DeviceKind implements net.minecraft.util.StringRepresentable {
 
     /** 车辆仪表：只提供速度。任何车都能装，与信号制度无关。 */
     SPEEDOMETER("speedometer", null),
@@ -27,9 +27,19 @@ public enum DeviceKind {
         this.signalSystem = signalSystem;
     }
 
-    /** 稳定 id，写进方块实体 NBT 与网络包。**不要改**，改了存档里的设备会失效。 */
+    /** 稳定 id，写进方块状态、NBT 与网络包。**不要改**，改了存档里的设备会失效。 */
     public String id() {
         return id;
+    }
+
+    @Override
+    public String getSerializedName() {
+        return id;
+    }
+
+    /** 语言键：让同一种方块的不同设备能各自命名。 */
+    public String langKey() {
+        return "item.ctdscript.onboard_" + id;
     }
 
     /** 这个设备让列车具备哪套信号系统；{@code null} 表示不参与信号判定。 */
