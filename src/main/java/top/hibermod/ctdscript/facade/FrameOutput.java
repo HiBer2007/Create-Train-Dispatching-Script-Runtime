@@ -74,7 +74,7 @@ public final class FrameOutput {
     public void proceed(String trainId, double authority, double speedCap) {
         // 记下这次授权：显示器/诊断要读它，不该各自去问内核
         UUID authId = requireId(trainId, "train id");
-        if (authId != null) top.hibermod.ctdscript.bridge.KernelAuthority.put(authId, authority);
+        if (authId != null) top.hibermod.ctdscript.bridge.KernelAuthority.put(authId, authority, speedCap);
         UUID id = requireId(trainId, "train id");
         if (id == null) return;
         if (authority <= 0 || speedCap <= 0) {

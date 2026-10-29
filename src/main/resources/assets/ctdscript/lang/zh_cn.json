@@ -5,5 +5,8 @@
   "block.ctdscript.onboard_display.on": "指示器已启用",
   "block.ctdscript.onboard_display.off": "指示器已关闭",
   "block.ctdscript.display_board": "显示板",
-  "create.display_source.ctdscript.cbtc": "CBTC 移动授权"
+  "create.display_source.ctdscript.cbtc": "CBTC 移动授权",
+  "item.ctdscript.signal_configurator": "信号制度配置器",
+  "item.ctdscript.signal_configurator.not_a_signal": "这不是信号机",
+  "item.ctdscript.signal_configurator.unbound": "这架信号机还没绑定到轨道"
 }

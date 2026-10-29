@@ -1,47 +1,43 @@
 package top.hibermod.ctdscript.bridge;
 
-import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 内核最后一次下发的移动授权（按列车）。
+ * 内核下发的移动授权的脚本侧入口。
  *
- * <h2>为什么单独存一份</h2>
- * 授权是**内核算出来的**，不是列车自身的属性。显示器、诊断命令、日志都需要它，
- * 但它们不该各自去问内核——那会把「谁有权读」变成一堆重复调用。
- *
- * <p>这里只做一件事：{@code out.proceed(...)} 时记一笔，读的人直接取。
- * 内核不再下发（停止运行/被移除）时条目会过期，读到的 {@code 0} 表示「没有授权」，
- * 这正是应该显示成未知的情况。
+ * <p>真正的存储是 {@link top.hibermod.ctdapi.status.Authority}——
+ * 宿主也要读它（推给客户端做仪表），所以事实放在契约层，这里只做转发。
+ * 保留这个类是为了让脚本侧的名字保持稳定（脚本里叫「内核授权」）。
  */
 public final class KernelAuthority {
 
-    private static final Map<UUID, Double> LAST = new ConcurrentHashMap<>();
-
     private KernelAuthority() {}
 
-    /** 内核下发时调用。 */
     public static void put(UUID trainId, double authority) {
-        if (trainId == null) return;
-        LAST.put(trainId, authority);
+        top.hibermod.ctdapi.status.Authority.put(trainId, authority, -1);
     }
 
-    /** 最近一次授权；没记录返回 0。 */
+    public static void put(UUID trainId, double authority, double speedCap) {
+        top.hibermod.ctdapi.status.Authority.put(trainId, authority, speedCap);
+    }
+
     public static double peek(UUID trainId) {
-        Double v = trainId == null ? null : LAST.get(trainId);
-        return v == null ? 0.0 : v;
+        return top.hibermod.ctdapi.status.Authority.distance(trainId);
+    }
+
+    public static double peekCap(UUID trainId) {
+        return top.hibermod.ctdapi.status.Authority.speedCap(trainId);
     }
 
     public static void clear(UUID trainId) {
-        LAST.remove(trainId);
+        top.hibermod.ctdapi.status.Authority.clear(trainId);
     }
 
     public static void clearAll() {
-        LAST.clear();
+        top.hibermod.ctdapi.status.Authority.clearAll();
     }
 
     public static int size() {
-        return LAST.size();
+        return top.hibermod.ctdapi.status.Authority.size();
     }
 }

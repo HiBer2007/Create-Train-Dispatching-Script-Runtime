@@ -113,6 +113,18 @@ public final class ContentApi {
         return id.toString();
     }
 
+    /**
+     * 报告一个 ATP 语音/告警事件（预留）。
+     *
+     * <p>事件名用 {@code bridge.AtpVoice} 里的常量。返回出声的语音源 id，
+     * 没出声返回 {@code null}——接了 TTS 之后同一行调用就会真的说话。
+     *
+     * <p>只在**状态跳变**时调：每帧都调会变成噪音。
+     */
+    @HostAccess.Export
+    public String atp_voice(String code, String level, String text) {
+        return top.hibermod.ctdscript.bridge.AtpVoice.say(code, level, text);
+    }
     /** 已注册的方块（脚本可读，用于自检）。 */
     @HostAccess.Export
     public java.util.List<String> blocks() {

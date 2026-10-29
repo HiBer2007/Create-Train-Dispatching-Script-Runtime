@@ -34,9 +34,16 @@ public final class HudState {
     /** 这列车上装了哪些车载设备（决定哪些 HUD 面板该出现）。 */
     private final java.util.Set<String> devices;
 
+    /** 内核给的允许速度（blocks/tick）；{@code -1} 表示内核没说话。 */
+    private final double authorityCap;
+
+    /** 内核给的授权距离（blocks）；配合 {@link #authorityCap} 一起看。 */
+    private final double authorityDistance;
+
     public HudState(double speed, double targetSpeed, double speedLimit, boolean riding,
                     String trainName, String nextStop, String platform, int delaySeconds,
-                    long gameTime, int sign, java.util.Set<String> devices) {
+                    long gameTime, int sign, java.util.Set<String> devices,
+                    double authorityCap, double authorityDistance) {
         this.speed = speed;
         this.targetSpeed = targetSpeed;
         this.speedLimit = speedLimit;
@@ -48,11 +55,14 @@ public final class HudState {
         this.gameTime = gameTime;
         this.sign = sign >= 0 ? 1 : -1;
         this.devices = devices == null ? java.util.Set.of() : java.util.Set.copyOf(devices);
+        this.authorityCap = authorityCap;
+        this.authorityDistance = authorityDistance;
     }
 
     /** 空态：没坐车、没数据时用。脚本拿到的是一组 0，不是异常。 */
     public static HudState empty() {
-        return new HudState(0, 0, 0, false, "", "", "", 0, 0, 1, java.util.Set.of());
+        return new HudState(0, 0, 0, false, "", "", "", 0, 0, 1, java.util.Set.of(),
+            -1.0, 0.0);
     }
 
     /** 速度，单位是「格/刻」（Create 原生单位，不是 m/s）。 */
@@ -119,6 +129,24 @@ public final class HudState {
     @HostAccess.Export
     public int delay_seconds() {
         return delaySeconds;
+    }
+
+    /** 内核给过许可速度吗。 */
+    @HostAccess.Export
+    public boolean has_authority() {
+        return authorityCap >= 0;
+    }
+
+    /** 许可速度（km/h）；没有授权返回 -1。 */
+    @HostAccess.Export
+    public double authority_kmh() {
+        return authorityCap < 0 ? -1.0 : authorityCap * 72.0;
+    }
+
+    /** 授权距离（格）；没有授权返回 0。 */
+    @HostAccess.Export
+    public double authority_distance() {
+        return authorityDistance;
     }
 
     /** 车上装没装某种设备（脚本可用它决定画什么）。 */

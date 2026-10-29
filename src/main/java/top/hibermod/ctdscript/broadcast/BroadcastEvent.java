@@ -13,6 +13,18 @@ package top.hibermod.ctdscript.broadcast;
  */
 public enum BroadcastEvent {
 
+    /** ATP 提示（出发、进站预告、开门提示）。 */
+    ATP_INFO("atp_info", true, false),
+
+    /** ATP 预警（接近限速、超速接近）。 */
+    ATP_WARNING("atp_warning", true, false),
+
+    /** ATP 常用制动。 */
+    ATP_BRAKE("atp_brake", true, false),
+
+    /** ATP 紧急制动。 */
+    ATP_EMERGENCY("atp_emergency", true, false),
+
     /** 列车接近车站。 */
     APPROACHING("approaching", true, true),
 

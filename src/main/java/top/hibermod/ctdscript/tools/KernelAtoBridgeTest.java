@@ -44,7 +44,7 @@ public final class KernelAtoBridgeTest {
             6.0,
             null, 0.0, null, 0.0,
             List.of(),
-            speed, 0.5, 0.0075, 1.4,
+            speed, 0.5, 0.0075, 1.4, 1.4,
             2, false, false, false, 123.4,
             new Telemetry.RouteState(new Telemetry.RouteId(1L), 240.0, List.of(), List.of(), false),
             authority,
@@ -199,7 +199,7 @@ public final class KernelAtoBridgeTest {
             UUID parked = UUID.randomUUID();
             Telemetry.TrainState parkedState = new Telemetry.TrainState(
                 parked, Component.literal("parked"), 6.0, null, 0, null, 0, List.of(),
-                0, 0, 0.0075, 1.4, 1, false, false, false, 0,
+                0, 0, 0.0075, 1.4, 1.4, 1, false, false, false, 0,
                 null, 0, EnergyProvider.EnergySample.unknown(), java.util.Set.of());
 
             RecordingFrame frame = new RecordingFrame();

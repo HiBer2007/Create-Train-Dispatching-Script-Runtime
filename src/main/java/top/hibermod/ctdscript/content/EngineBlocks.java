@@ -39,6 +39,10 @@ public final class EngineBlocks {
     public static final ResourceLocation DISPLAY_BOARD =
         ResourceLocation.fromNamespaceAndPath("ctdscript", "display_board");
 
+    /** 信号制度配置器（右键信号机打开选择界面）。 */
+    public static final ResourceLocation SIGNAL_CONFIGURATOR =
+        ResourceLocation.fromNamespaceAndPath("ctdscript", "signal_configurator");
+
     private static BlockEntityType<OnboardDeviceBlockEntity> onboardType;
     private static BlockEntityType<DisplayBoardBlockEntity> displayType;
     private static CreativeModeTab tab;
@@ -130,6 +134,8 @@ public final class EngineBlocks {
             event.register(Registries.ITEM, DISPLAY_BOARD, () -> new BlockItem(
                 net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(DISPLAY_BOARD),
                 new Item.Properties()));
+            event.register(Registries.ITEM, SIGNAL_CONFIGURATOR,
+                () -> new SignalConfiguratorItem(new Item.Properties().stacksTo(1)));
 
         } else if (event.getRegistryKey().equals(
                 com.simibubi.create.api.registry.CreateRegistries.DISPLAY_SOURCE)) {
@@ -145,6 +151,7 @@ public final class EngineBlocks {
                     accept(output, ONBOARD_SPEEDOMETER);
                     accept(output, ONBOARD_CBTC_ATP);
                     accept(output, DISPLAY_BOARD);
+                    accept(output, SIGNAL_CONFIGURATOR);
                     for (BlockDefinition def : ContentRegistry.blocks()) {
                         Item item = net.minecraft.core.registries.BuiltInRegistries.ITEM
                             .get(def.id());

@@ -34,6 +34,16 @@ public final class TrainFacade {
 
     // ── 运动学 ────────────────────────────────────────────────────────────
 
+    /**
+     * 当前弯道的限速（blocks/tick）。
+     *
+     * <p>许可速度必须同时受**信号**与**线路**约束：只按授权距离算出来的速度，
+     * 到了曲线上会超速。取两者较小值才是司机看到的那个数。
+     */
+    @HostAccess.Export
+    public double curve_speed() {
+        return state.maxTurnSpeed();
+    }
     /** 当前速度（格/tick，正 = 沿进路前进）。 */
     @HostAccess.Export
     public double speed() {

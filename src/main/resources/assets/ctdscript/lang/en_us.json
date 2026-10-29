@@ -5,5 +5,8 @@
   "block.ctdscript.onboard_display.on": "Indicator ON",
   "block.ctdscript.onboard_display.off": "Indicator OFF",
   "block.ctdscript.display_board": "Display Board",
-  "create.display_source.ctdscript.cbtc": "CBTC Movement Authority"
+  "create.display_source.ctdscript.cbtc": "CBTC Movement Authority",
+  "item.ctdscript.signal_configurator": "Signal System Configurator",
+  "item.ctdscript.signal_configurator.not_a_signal": "That is not a signal",
+  "item.ctdscript.signal_configurator.unbound": "This signal is not bound to track yet"
 }

@@ -278,9 +278,14 @@ public final class ScriptHud {
                 devices.add(kind.id());
             }
 
+            // 许可速度来自内核授权（-1 = 内核没说过），
+            // 不是列车自己的 targetSpeed——那是行车策略，没人给目标就是 0
+            double authCap = feed != null ? feed.authoritySpeed() : -1.0;
+            double authDist = feed != null ? feed.authorityDistance() : 0.0;
+
             return new HudState(speed, target, 0, true, name,
                 "", "", 0, mc.level == null ? 0 : mc.level.getGameTime(),
-                cabSign(mc.player, cce), devices);
+                cabSign(mc.player, cce), devices, authCap, authDist);
         }
 
         /**
