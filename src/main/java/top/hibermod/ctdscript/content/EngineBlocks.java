@@ -38,6 +38,13 @@ public final class EngineBlocks {
     public static final ResourceLocation DISPLAY_BOARD =
         ResourceLocation.fromNamespaceAndPath("ctdscript", "display_board");
 
+    /** 速度表设备物品（放置同一个方块，型号不同）。 */
+    public static final ResourceLocation ITEM_SPEEDOMETER =
+        ResourceLocation.fromNamespaceAndPath("ctdscript", "onboard_speedometer");
+    /** CBTC 车载 ATP 物品。 */
+    public static final ResourceLocation ITEM_CBTC_ATP =
+        ResourceLocation.fromNamespaceAndPath("ctdscript", "onboard_cbtc_atp");
+
     private static BlockEntityType<OnboardDeviceBlockEntity> onboardType;
     private static BlockEntityType<DisplayBoardBlockEntity> displayType;
     private static CreativeModeTab tab;
@@ -98,6 +105,12 @@ public final class EngineBlocks {
                 net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(DISPLAY_BOARD),
                 new Item.Properties()));
 
+            // 同一个方块、不同型号：玩家在创造栏里看到的是两种设备
+            event.register(Registries.ITEM, ITEM_SPEEDOMETER,
+                () -> new KindedDeviceItem(DeviceKind.SPEEDOMETER));
+            event.register(Registries.ITEM, ITEM_CBTC_ATP,
+                () -> new KindedDeviceItem(DeviceKind.CBTC_ATP));
+
         } else if (event.getRegistryKey().equals(
                 com.simibubi.create.api.registry.CreateRegistries.DISPLAY_SOURCE)) {
             // 复用 Create 的 DisplayLink：我们只提供数据，显示交给辉光管/告示牌
@@ -116,6 +129,10 @@ public final class EngineBlocks {
                         net.minecraft.core.registries.BuiltInRegistries.ITEM.get(ONBOARD_DISPLAY)));
                     output.accept(new ItemStack(
                         net.minecraft.core.registries.BuiltInRegistries.ITEM.get(DISPLAY_BOARD)));
+                    output.accept(new ItemStack(
+                        net.minecraft.core.registries.BuiltInRegistries.ITEM.get(ITEM_SPEEDOMETER)));
+                    output.accept(new ItemStack(
+                        net.minecraft.core.registries.BuiltInRegistries.ITEM.get(ITEM_CBTC_ATP)));
                     for (BlockDefinition def : ContentRegistry.blocks()) {
                         Item item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(def.id());
                         if (item != null) output.accept(new ItemStack(item));
@@ -145,6 +162,35 @@ public final class EngineBlocks {
             .REGISTRY.get(block.defaultBlockState());
         System.out.println("[ctdscript] onboard interaction behaviour "
             + (check == null ? "NOT registered" : "registered: " + check.getClass().getSimpleName()));
+    }
+
+    /**
+     * 放置时写入型号的设备物品。
+     *
+     * <p>三种设备共用一块方块，是为了让「设备」这个概念只有一个实现；
+     * 型号在放置那一刻写进方块实体，之后拆装、存档都跟着走。
+     */
+    private static final class KindedDeviceItem extends BlockItem {
+        private final DeviceKind kind;
+
+        KindedDeviceItem(DeviceKind kind) {
+            super(net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(ONBOARD_DISPLAY),
+                new Item.Properties());
+            this.kind = kind;
+        }
+
+        @Override
+        public net.minecraft.world.InteractionResult place(
+                net.minecraft.world.item.context.BlockPlaceContext ctx) {
+            var result = super.place(ctx);
+            if (result.consumesAction()) {
+                var pos = ctx.getClickedPos();
+                if (ctx.getLevel().getBlockEntity(pos) instanceof OnboardDeviceBlockEntity be) {
+                    be.setKind(kind);
+                }
+            }
+            return result;
+        }
     }
 
     /** 车载设备方块本体（客户端闸门要按它筛选构造物里的方块）。 */

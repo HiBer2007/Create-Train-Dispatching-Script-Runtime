@@ -27,13 +27,20 @@ import net.minecraft.resources.ResourceLocation;
  * @param draw         回调，签名 {@code draw(canvas)}
  * @param intervalTicks 刷新间隔（tick），最小 1
  * @param order        绘制顺序，小的先画
+ * @param requires     需要车上装哪种设备；{@code null} 表示不需要（任何车都能显示）
  */
 public record HudDefinition(
     ResourceLocation id,
     Value draw,
     int intervalTicks,
-    int order
+    int order,
+    DeviceKind requires
 ) {
+    /** 不需要车载设备的构造器（兼容老脚本）。 */
+    public HudDefinition(ResourceLocation id, Value draw, int intervalTicks, int order) {
+        this(id, draw, intervalTicks, order, null);
+    }
+
     public HudDefinition {
         if (id == null) throw new IllegalArgumentException("hud id is required");
         if (draw == null || !draw.canExecute()) {

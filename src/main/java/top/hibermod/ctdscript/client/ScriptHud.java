@@ -74,6 +74,11 @@ public final class ScriptHud {
         long gameTime = mc.level.getGameTime();
 
         for (PanelState panel : PANELS) {
+            // 面板声明了「需要哪种车载设备」就只在该设备存在时出现：
+            // 没装 ATP 的车不该看到移动授权，正如现实一样
+            var required = panel.definition.requires();
+            if (required != null && !state.has_device(required.id())) continue;
+
             long interval = panel.definition.intervalTicks();
             if (panel.lastUpdate == Long.MIN_VALUE || gameTime - panel.lastUpdate >= interval) {
                 refresh(panel, state);
@@ -219,9 +224,14 @@ public final class ScriptHud {
             double speed = feed != null ? feed.speed() : train.speed;
             double target = feed != null ? feed.targetSpeed() : train.targetSpeed;
 
+            java.util.Set<String> devices = new java.util.LinkedHashSet<>();
+            for (var kind : top.hibermod.ctdscript.content.TrainDevices.of(cce)) {
+                devices.add(kind.id());
+            }
+
             return new HudState(speed, target, 0, true, name,
                 "", "", 0, mc.level == null ? 0 : mc.level.getGameTime(),
-                cabSign(mc.player, cce));
+                cabSign(mc.player, cce), devices);
         }
 
         /**

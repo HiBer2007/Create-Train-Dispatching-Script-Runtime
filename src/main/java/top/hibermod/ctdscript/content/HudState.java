@@ -31,9 +31,12 @@ public final class HudState {
     /** 相对驾驶台的符号：朝驾驶台面对的方向走为正，倒着走为负。 */
     private final int sign;
 
+    /** 这列车上装了哪些车载设备（决定哪些 HUD 面板该出现）。 */
+    private final java.util.Set<String> devices;
+
     public HudState(double speed, double targetSpeed, double speedLimit, boolean riding,
                     String trainName, String nextStop, String platform, int delaySeconds,
-                    long gameTime, int sign) {
+                    long gameTime, int sign, java.util.Set<String> devices) {
         this.speed = speed;
         this.targetSpeed = targetSpeed;
         this.speedLimit = speedLimit;
@@ -44,11 +47,12 @@ public final class HudState {
         this.delaySeconds = delaySeconds;
         this.gameTime = gameTime;
         this.sign = sign >= 0 ? 1 : -1;
+        this.devices = devices == null ? java.util.Set.of() : java.util.Set.copyOf(devices);
     }
 
     /** 空态：没坐车、没数据时用。脚本拿到的是一组 0，不是异常。 */
     public static HudState empty() {
-        return new HudState(0, 0, 0, false, "", "", "", 0, 0, 1);
+        return new HudState(0, 0, 0, false, "", "", "", 0, 0, 1, java.util.Set.of());
     }
 
     /** 速度，单位是「格/刻」（Create 原生单位，不是 m/s）。 */
@@ -115,6 +119,18 @@ public final class HudState {
     @HostAccess.Export
     public int delay_seconds() {
         return delaySeconds;
+    }
+
+    /** 车上装没装某种设备（脚本可用它决定画什么）。 */
+    @HostAccess.Export
+    public boolean has_device(String id) {
+        return id != null && devices.contains(id);
+    }
+
+    /** 全部已装设备 id，逗号分隔。 */
+    @HostAccess.Export
+    public String devices() {
+        return String.join(",", devices);
     }
 
     @HostAccess.Export

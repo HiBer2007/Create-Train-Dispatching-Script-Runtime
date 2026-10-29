@@ -24,6 +24,9 @@ public class OnboardDeviceBlockEntity extends BlockEntity {
 
     private CompoundTag deviceState = new CompoundTag();
 
+    /** 这台设备是哪一种（速度表 / CBTC ATP）。决定它给列车什么能力。 */
+    private DeviceKind kind = DeviceKind.SPEEDOMETER;
+
     public OnboardDeviceBlockEntity(BlockPos pos, BlockState state) {
         this(EngineBlocks.onboardDeviceType(), pos, state);
     }
@@ -31,6 +34,19 @@ public class OnboardDeviceBlockEntity extends BlockEntity {
     public OnboardDeviceBlockEntity(net.minecraft.world.level.block.entity.BlockEntityType<?> type,
                                     BlockPos pos, BlockState state) {
         super(type, pos, state);
+    }
+
+    public DeviceKind kind() {
+        return kind;
+    }
+
+    public void setKind(DeviceKind kind) {
+        if (kind == null || kind == this.kind) return;
+        this.kind = kind;
+        setChanged();
+        if (level != null && !level.isClientSide) {
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
     }
 
     /** 设备自身的状态（暂时为空）。 */
@@ -42,11 +58,13 @@ public class OnboardDeviceBlockEntity extends BlockEntity {
     protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.saveAdditional(tag, registries);
         tag.put("Device", deviceState.copy());
+        tag.putString("Kind", kind.id());
     }
 
     @Override
     protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.loadAdditional(tag, registries);
+        kind = DeviceKind.byIdOrSpeedometer(tag.getString("Kind"));
         if (tag.contains("Device")) {
             deviceState = tag.getCompound("Device").copy();
         }

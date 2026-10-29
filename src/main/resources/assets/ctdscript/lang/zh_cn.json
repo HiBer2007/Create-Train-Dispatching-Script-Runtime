@@ -1,8 +1,10 @@
 {
   "itemGroup.ctdscript.content": "CTD 内容",
-  "block.ctdscript.onboard_display": "车载显示设备",
+  "block.ctdscript.onboard_display": "车载设备",
   "block.ctdscript.onboard_display.on": "车载显示：指示器已启用",
   "block.ctdscript.onboard_display.off": "车载显示：指示器已关闭",
+  "item.ctdscript.onboard_speedometer": "车载设备：车辆仪表",
+  "item.ctdscript.onboard_cbtc_atp": "车载设备：CBTC 车载 ATP",
   "block.ctdscript.display_board": "显示板",
   "create.display_source.ctdscript.cbtc": "CBTC 移动授权"
 }

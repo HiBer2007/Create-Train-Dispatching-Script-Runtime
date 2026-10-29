@@ -12,6 +12,7 @@ import net.minecraft.resources.ResourceLocation;
 
 import top.hibermod.ctdapi.signal.Aspect;
 import top.hibermod.ctdapi.signal.LampColor;
+import top.hibermod.ctdapi.signal.LampDisplay;
 import top.hibermod.ctdapi.signal.SignalRegistries;
 import top.hibermod.ctdapi.signal.SignalSemantics;
 import top.hibermod.ctdapi.signal.SignalSystem;
@@ -88,21 +89,37 @@ public final class SignalApi {
     /** 新建一个信号机型描述。{@code systemId} 形如 {@code "ctd:mainline_4"}。 */
     @HostAccess.Export
     public TypeBuilder type(String namespace, String path, String systemId) {
-        return new TypeBuilder(rl(namespace, path), ResourceLocation.parse(systemId));
+        return new TypeBuilder(rl(namespace, path), ResourceLocation.parse(systemId), this);
     }
 
     /** 注册一个独立语义（内置之外的自定义语义）。 */
     @HostAccess.Export
-    public void registerAspect(String namespace, String path, String displayName,
-                               double speedFraction, String category) {
+    public Aspect registerAspect(String namespace, String path, String displayName,
+                                 double speedFraction, String category) {
         top.hibermod.ctdscript.ScriptMode.requireStartup("SignalApi");
         Aspect.Category cat = Aspect.Category.valueOf(category.toUpperCase(java.util.Locale.ROOT));
         Aspect a = new Aspect(rl(namespace, path), Component.literal(displayName), speedFraction, cat);
         SignalRegistries.registerAspect(a);
         top.hibermod.ctdscript.ScriptRegistry.add(
             top.hibermod.ctdscript.ScriptRegistry.Kind.ASPECT, a.id(), a);
+        // 返回对象本身：脚本要用它去 expresses(aspect, 槽位) 配双灯组合，
+        // 只给 void 的话脚本没有任何办法拿回刚注册的语义
+        return a;
     }
 
+    /** 按 id 取已注册的语义；不存在返回 {@code null}。 */
+    @HostAccess.Export
+    public Aspect aspect(String namespace, String path) {
+        return SignalRegistries.aspect(rl(namespace, path)).orElse(null);
+    }
+
+    /** 颜色名 → 灯色。给 {@code expressesColored} 用（放在外层，因为灯色是外层实例字段）。 */
+    LampColor colorByName(String name) {
+        for (LampColor c : new LampColor[] { RED, YELLOW, GREEN, BLUE, WHITE }) {
+            if (c.id().getPath().equalsIgnoreCase(name)) return c;
+        }
+        return null;
+    }
     // ── 描述性对象 ────────────────────────────────────────────────────────
 
     /** {@code signal.system(...)} 返回的东西。 */
@@ -173,12 +190,19 @@ public final class SignalApi {
         private final List<LampColor> lamps = new ArrayList<>();
         private final List<Aspect> expressed = new ArrayList<>();
         private final List<int[]> slots = new ArrayList<>();
+        /** 带颜色的表达（双灯组合），与 slots 并存。 */
+        private final java.util.Map<ResourceLocation, java.util.List<LampDisplay>> coloredMap =
+            new java.util.LinkedHashMap<>();
+
         private SignalSemantics semantics = SignalSemantics.BLOCK;
         private int priority;
 
-        TypeBuilder(ResourceLocation id, ResourceLocation systemId) {
+        private final SignalApi owner;
+
+        TypeBuilder(ResourceLocation id, ResourceLocation systemId, SignalApi owner) {
             this.idOrigin = id;
             this.systemId = systemId;
+            this.owner = owner;
         }
 
         @HostAccess.Export
@@ -187,6 +211,32 @@ public final class SignalApi {
             return this;
         }
 
+        /**
+         * 用「颜色序列」表达一个语义 —— 双灯组合制式的入口。
+         *
+         * <p>{@code expressesColored(CLEAR, "green,green")} 表示两个灯位都亮绿；
+         * {@code "green,yellow"} 是绿-黄。颜色名取 red/yellow/green/blue/white。
+         *
+         * <p>为什么需要它：传统建模里灯座是**固定颜色**的，
+         * 而 CBTC 的两灯位信号机每个灯位都能显示任意颜色，
+         * 「绿-绿 / 绿-黄 / 绿-红」这类组合才有意义。
+         */
+        @HostAccess.Export
+        public TypeBuilder expressesColored(Aspect aspect, String colors) {
+            String[] parts = colors.split(",");
+            java.util.List<LampDisplay> displays = new java.util.ArrayList<>();
+            for (int i = 0; i < parts.length; i++) {
+                LampColor c = owner.colorByName(parts[i].trim());
+                if (c == null) continue;
+                displays.add(LampDisplay.steady(i, c));
+            }
+            if (!displays.isEmpty()) {
+                coloredMap.put(aspect.id(), displays);
+            }
+            return this;
+        }
+
+
         @HostAccess.Export
         public TypeBuilder expresses(Aspect aspect, int... lampSlots) {
             expressed.add(aspect);
@@ -194,8 +244,7 @@ public final class SignalApi {
             return this;
         }
 
-        @HostAccess.Export
-        public TypeBuilder semantics(SignalSemantics semantics) {
+        @HostAccess.Export        public TypeBuilder semantics(SignalSemantics semantics) {
             this.semantics = semantics;
             return this;
         }
@@ -217,6 +266,12 @@ public final class SignalApi {
             lamps.forEach(b::lamp);
             for (int i = 0; i < expressed.size(); i++) {
                 b.expresses(expressed.get(i).id(), slots.get(i));
+            }
+            for (var ce : coloredMap.entrySet()) {
+                b.expresses(ce.getKey(), ce.getValue().toArray(new LampDisplay[0]));
+            }
+            for (var e : coloredMap.entrySet()) {
+                b.expresses(e.getKey(), e.getValue().toArray(new LampDisplay[0]));
             }
             SignalType type = b.build();
             SignalRegistries.registerType(type);

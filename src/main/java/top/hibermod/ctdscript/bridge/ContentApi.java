@@ -94,6 +94,25 @@ public final class ContentApi {
         return id.toString();
     }
 
+    /**
+     * 注册 HUD 面板并声明**需要哪种车载设备**。
+     *
+     * <p>速度表由车辆仪表提供，信号预告由 ATP 提供——
+     * 没装对应设备的车不该出现那块表，正如现实里没装 ATP 的车看不到移动授权。
+     *
+     * @param requiresDevice 设备 id（{@code speedometer} / {@code cbtc_atp}）；空串表示不需要
+     */
+    @HostAccess.Export
+    public String hud(String namespace, String path, Value draw, int intervalTicks, int order,
+                      String requiresDevice) {
+        ResourceLocation id = ResourceLocation.fromNamespaceAndPath(namespace, path);
+        ContentRegistry.addHud(new HudDefinition(id, draw, Math.max(1, intervalTicks), order,
+            requiresDevice == null || requiresDevice.isBlank()
+                ? null
+                : top.hibermod.ctdscript.content.DeviceKind.byId(requiresDevice)));
+        return id.toString();
+    }
+
     /** 已注册的方块（脚本可读，用于自检）。 */
     @HostAccess.Export
     public java.util.List<String> blocks() {
