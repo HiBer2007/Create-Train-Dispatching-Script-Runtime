@@ -166,3 +166,51 @@ content.hud("mysys", "badge", draw,
 
 配方（`content.block`）写错时会在启动期直接抛异常并指明是哪一条，
 不会把半个定义塞进注册表。
+
+---
+
+## 8. 实测记录
+
+### 服务端（已验证）
+
+```
+[block] declared bridge_panel
+[hud] declared badge
+[ctdscript] content sealed: blocks=1 huds=1
+```
+
+`/ctd content`：
+
+```
+CTD script content: blocks=1 huds=1 (sealed)
+  block mysys:bridge_panel texture=mysys:block/bridge_panel [registered]
+  hud   mysys:badge every 2t
+```
+
+`/setblock 0 -60 0 mysys:bridge_panel` → `Changed the block at 0, -60, 0`
+
+**脚本声明的方块确实进了注册表，而且能放置。** 这一步与资源包无关，
+所以即使纹理没装上，方块也是可用的。
+
+### 生成的资源包（已验证）
+
+```
+pack.mcmeta
+assets/mysys/blockstates/bridge_panel.json
+assets/mysys/models/block/bridge_panel.json
+assets/mysys/models/item/bridge_panel.json
+assets/mysys/textures/block/bridge_panel.png   ← 脚本提供的
+assets/mysys/textures/gui/badge.png            ← 脚本提供的
+```
+
+三份 JSON 全是引擎合成，脚本只给了两张 PNG。
+
+### 客户端（待验证）
+
+纹理与 HUD 的外观要在客户端看：
+
+- 方块应显示蓝色（测试图是 16×16 纯蓝），而不是紫黑格
+- 左上角应出现 `CTD script HUD` 文字与一条半透明底条
+
+⚠ 如果方块是紫黑格：资源包没被启用。检查 `options.txt` 的
+`resourcePacks` 是否含 `file/ctd_scripts`，或在「选项 → 资源包」里手动勾选。
