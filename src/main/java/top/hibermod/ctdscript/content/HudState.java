@@ -28,9 +28,12 @@ public final class HudState {
     private final int delaySeconds;
     private final long gameTime;
 
+    /** 相对驾驶台的符号：朝驾驶台面对的方向走为正，倒着走为负。 */
+    private final int sign;
+
     public HudState(double speed, double targetSpeed, double speedLimit, boolean riding,
                     String trainName, String nextStop, String platform, int delaySeconds,
-                    long gameTime) {
+                    long gameTime, int sign) {
         this.speed = speed;
         this.targetSpeed = targetSpeed;
         this.speedLimit = speedLimit;
@@ -40,11 +43,12 @@ public final class HudState {
         this.platform = platform;
         this.delaySeconds = delaySeconds;
         this.gameTime = gameTime;
+        this.sign = sign >= 0 ? 1 : -1;
     }
 
     /** 空态：没坐车、没数据时用。脚本拿到的是一组 0，不是异常。 */
     public static HudState empty() {
-        return new HudState(0, 0, 0, false, "", "", "", 0, 0);
+        return new HudState(0, 0, 0, false, "", "", "", 0, 0, 1);
     }
 
     /** 速度，单位是「格/刻」（Create 原生单位，不是 m/s）。 */
@@ -53,10 +57,28 @@ public final class HudState {
         return speed;
     }
 
-    /** 换算成 km/h，方便直接显示。 */
+    /**
+     * 速度（km/h），**带符号**。
+     *
+     * <p>符号相对**驾驶台**：朝驾驶台面对的方向行驶为正，倒车为负。
+     * Create 原生的 HUD 用的是 {@code Math.abs(train.speed)}（无符号），
+     * 但指针式仪表需要知道往哪边摆——倒车时指针该往回走。
+     */
     @HostAccess.Export
     public double speed_kmh() {
-        return speed * 20.0 * 3.6;
+        return speed * sign * 72.0;
+    }
+
+    /** 不带符号的速度（km/h）。 */
+    @HostAccess.Export
+    public double speed_abs_kmh() {
+        return Math.abs(speed) * 72.0;
+    }
+
+    /** 当前符号：+1 前进，-1 倒行。 */
+    @HostAccess.Export
+    public int direction_sign() {
+        return sign;
     }
 
     @HostAccess.Export

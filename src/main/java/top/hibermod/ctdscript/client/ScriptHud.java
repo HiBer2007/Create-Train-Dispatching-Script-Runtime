@@ -53,6 +53,9 @@ public final class ScriptHud {
     }
 
     private static final List<PanelState> PANELS = new ArrayList<>();
+
+    /** 上一份可用状态：短暂拿不到数据时沿用，避免 HUD 闪烁消失。 */
+    private static HudState LAST_GOOD;
     private static boolean initialised;
 
     private ScriptHud() {}
@@ -66,7 +69,15 @@ public final class ScriptHud {
         if (PANELS.isEmpty()) return;
 
         HudState state = RidingContext.state(mc);
-        if (state == null) return;          // 没坐在车上：不显示、也不求值
+        if (state == null) {
+            // 坐着车但拿不到状态（构造物还没同步、车实体暂时缺席…）：
+            // **不要立刻消失**，先沿用上一份。否则玩家会看到 HUD 一闪一没，
+            // 而这通常只是某一帧的同步抖动。
+            if (LAST_GOOD == null) return;
+            state = LAST_GOOD;
+        } else {
+            LAST_GOOD = state;
+        }
 
         GuiGraphics gg = event.getGuiGraphics();
         long gameTime = mc.level.getGameTime();
@@ -204,7 +215,8 @@ public final class ScriptHud {
             var train = carriage.train;
             String name = train.name == null ? "" : train.name.getString();
             return new HudState(train.speed, train.targetSpeed, 0, true, name,
-                "", "", 0, mc.level == null ? 0 : mc.level.getGameTime());
+                "", "", 0, mc.level == null ? 0 : mc.level.getGameTime(),
+                cabSign(cce, carriage, train));
         }
 
         /**
@@ -214,6 +226,60 @@ public final class ScriptHud {
          * {@code StructureBlockInfo.nbt()}，所以这里查的是那份快照，
          * 不需要方块实体本身（客户端也不一定有）。
          */
+        /**
+         * 相对**驾驶台**的符号：+1 该驾驶台的前进方向，-1 反向。
+         *
+         * <h2>判据直接照抄 Create</h2>
+         * {@code CarriageContraptionEntity#control:562-568}：
+         * <pre>
+         * Direction initialOrientation = getInitialOrientation().getCounterClockWise();
+         * inverted = !controlsBlock.FACING.equals(initialOrientation);
+         * </pre>
+         * 也就是说：**驾驶台朝向与车体装配朝向不一致时，前进方向取反**。
+         * 这是 Create 自己判定「哪个键往前走」的依据，跟着它走就不会和原版手感打架。
+         *
+         * <p>之前我用「实体位移方向 · 驾驶台朝向」来算，结果是错的：
+         * 位移方向是**世界坐标**，而车速是在**车体参考系**里的，
+         * 两个系混在一起算，就会出现「一个驾驶台恒正、另一个恒负」——
+         * 恰好是你看到的现象。
+         *
+         * <p>不在驾驶台时（{@code ControlsHandler} 没记着控制点）返回 +1：
+         * 乘客看到的就是车速本身，没有「驾驶台方向」可言。
+         */
+        static int cabSign(
+                com.simibubi.create.content.trains.entity.CarriageContraptionEntity cce,
+                com.simibubi.create.content.trains.entity.Carriage carriage,
+                com.simibubi.create.content.trains.entity.Train train) {
+            try {
+                var contraption = cce.getContraption();
+                if (contraption == null) return 1;
+
+                net.minecraft.core.BlockPos controlsPos =
+                    com.simibubi.create.content.contraptions.actors.trainControls.ControlsHandler
+                        .getControlsPos();
+                if (controlsPos == null) return 1;       // 没在驾驶
+
+                var info = contraption.getBlocks().get(controlsPos);
+                if (info == null) return 1;
+                if (!info.state().hasProperty(
+                        com.simibubi.create.content.contraptions.actors.trainControls
+                            .ControlsBlock.FACING)) {
+                    return 1;
+                }
+
+                net.minecraft.core.Direction controlsFacing = info.state().getValue(
+                    com.simibubi.create.content.contraptions.actors.trainControls
+                        .ControlsBlock.FACING);
+
+                net.minecraft.core.Direction initialOrientation =
+                    cce.getInitialOrientation().getCounterClockWise();
+
+                boolean inverted = !controlsFacing.equals(initialOrientation);
+                return inverted ? -1 : 1;
+            } catch (Throwable t) {
+                return 1;                                // 拿不到就退回正号，不影响画
+            }
+        }
         static boolean hasDisplayDevice(
                 com.simibubi.create.content.trains.entity.CarriageContraptionEntity cce) {
             var contraption = cce.getContraption();

@@ -35,7 +35,11 @@ public final class EngineBlocks {
     public static final ResourceLocation ONBOARD_DISPLAY =
         ResourceLocation.fromNamespaceAndPath("ctdscript", "onboard_display");
 
+    public static final ResourceLocation DISPLAY_BOARD =
+        ResourceLocation.fromNamespaceAndPath("ctdscript", "display_board");
+
     private static BlockEntityType<OnboardDeviceBlockEntity> onboardType;
+    private static BlockEntityType<DisplayBoardBlockEntity> displayType;
     private static CreativeModeTab tab;
 
     private EngineBlocks() {}
@@ -48,12 +52,27 @@ public final class EngineBlocks {
         return onboardType;
     }
 
+    public static BlockEntityType<DisplayBoardBlockEntity> displayBoardType() {
+        return displayType;
+    }
+
+    /** 显示板方块本体。 */
+    public static Block displayBoard() {
+        return net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(DISPLAY_BOARD);
+    }
+
     public static CreativeModeTab tab() {
         return tab;
     }
 
     private static void onRegister(RegisterEvent event) {
         if (event.getRegistryKey().equals(Registries.BLOCK)) {
+            event.register(Registries.BLOCK, DISPLAY_BOARD, () -> new DisplayBoardBlock(
+                BlockBehaviour.Properties.of()
+                    .strength(1.0f)
+                    .sound(SoundType.METAL)
+                    .noOcclusion()));
+
             event.register(Registries.BLOCK, ONBOARD_DISPLAY, () -> new OnboardDeviceBlock(
                 BlockBehaviour.Properties.of()
                     .strength(1.5f)
@@ -66,9 +85,17 @@ public final class EngineBlocks {
                 .build(null);
             event.register(Registries.BLOCK_ENTITY_TYPE, ONBOARD_DISPLAY, () -> onboardType);
 
+            displayType = BlockEntityType.Builder.of(DisplayBoardBlockEntity::new,
+                net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(DISPLAY_BOARD))
+                .build(null);
+            event.register(Registries.BLOCK_ENTITY_TYPE, DISPLAY_BOARD, () -> displayType);
+
         } else if (event.getRegistryKey().equals(Registries.ITEM)) {
             event.register(Registries.ITEM, ONBOARD_DISPLAY, () -> new BlockItem(
                 net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(ONBOARD_DISPLAY),
+                new Item.Properties()));
+            event.register(Registries.ITEM, DISPLAY_BOARD, () -> new BlockItem(
+                net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(DISPLAY_BOARD),
                 new Item.Properties()));
 
         } else if (event.getRegistryKey().equals(Registries.CREATIVE_MODE_TAB)) {
@@ -80,6 +107,8 @@ public final class EngineBlocks {
                     // 引擎方块先列，脚本方块跟后面：玩家不需要知道区别
                     output.accept(new ItemStack(
                         net.minecraft.core.registries.BuiltInRegistries.ITEM.get(ONBOARD_DISPLAY)));
+                    output.accept(new ItemStack(
+                        net.minecraft.core.registries.BuiltInRegistries.ITEM.get(DISPLAY_BOARD)));
                     for (BlockDefinition def : ContentRegistry.blocks()) {
                         Item item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(def.id());
                         if (item != null) output.accept(new ItemStack(item));
@@ -102,6 +131,13 @@ public final class EngineBlocks {
         if (block == null) return;
         com.simibubi.create.api.behaviour.interaction.MovingInteractionBehaviour.REGISTRY
             .register(block, new OnboardDeviceInteraction());
+
+        // 自检：注册完立刻查一次。查不到就意味着「挂了但没生效」，
+        // 那种情况在游戏里表现为右键没反应，且不报错。
+        var check = com.simibubi.create.api.behaviour.interaction.MovingInteractionBehaviour
+            .REGISTRY.get(block.defaultBlockState());
+        System.out.println("[ctdscript] onboard interaction behaviour "
+            + (check == null ? "NOT registered" : "registered: " + check.getClass().getSimpleName()));
     }
 
     /** 车载设备方块本体（客户端闸门要按它筛选构造物里的方块）。 */

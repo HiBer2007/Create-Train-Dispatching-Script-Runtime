@@ -2,5 +2,6 @@
   "itemGroup.ctdscript.content": "CTD 内容",
   "block.ctdscript.onboard_display": "车载显示设备",
   "block.ctdscript.onboard_display.on": "车载显示：指示器已启用",
-  "block.ctdscript.onboard_display.off": "车载显示：指示器已关闭"
+  "block.ctdscript.onboard_display.off": "车载显示：指示器已关闭",
+  "block.ctdscript.display_board": "显示板"
 }

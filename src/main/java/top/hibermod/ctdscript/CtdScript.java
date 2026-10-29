@@ -81,7 +81,6 @@ public final class CtdScript {
         // ③ 注册监听：此时定义已经齐了
         top.hibermod.ctdscript.content.ScriptBlocks.attach(modBus);
         top.hibermod.ctdscript.content.EngineBlocks.attach(modBus);
-        top.hibermod.ctdscript.content.EngineBlocks.registerInteractions();
 
         // 美术资源：把脚本的 assets/ 复制成资源包，并为每个方块合成模型 JSON。
         // 必须在资源加载之前——也就是现在（构造期）。
@@ -98,6 +97,7 @@ public final class CtdScript {
             System.err.println("[ctdscript] cannot build script resource pack: " + t);
         }
 
+        modBus.addListener(this::onRegisterRenderers);
         modBus.addListener(this::onCommonSetup);
         modBus.addListener(this::onLoadComplete);
 
@@ -166,6 +166,10 @@ public final class CtdScript {
 
 
     private void onCommonSetup(FMLCommonSetupEvent event) {
+        // 方块此时已经进了注册表，才能把「车上右键」行为挂到真正的方块上。
+        // 在构造期调用会拿到 air —— 注册表那时还是空的。
+        top.hibermod.ctdscript.content.EngineBlocks.registerInteractions();
+
         // 脚本会引用内置的语义/灯色/速度等级，所以先把内置内容注册好
         SignalRegistries.bootstrap();
         Traction.Builtin.bootstrap();
@@ -233,6 +237,10 @@ public final class CtdScript {
         event.registerBlockEntityRenderer(
             top.hibermod.ctdscript.content.EngineBlocks.onboardDeviceType(),
             top.hibermod.ctdscript.client.OnboardDeviceRenderer::new);
+        event.registerBlockEntityRenderer(
+            top.hibermod.ctdscript.content.EngineBlocks.displayBoardType(),
+            top.hibermod.ctdscript.client.DisplayBoardRenderer::new);
+        System.out.println("[ctdscript] registered 2 block-entity renderers");
     }
 
     /** 广播服务：事件模型 + 语音源链。全局一份，重载只清监听不清音源。 */
@@ -252,6 +260,8 @@ public final class CtdScript {
         LiteralArgumentBuilder<net.minecraft.commands.CommandSourceStack> root =
             Commands.literal("ctd")
                 .requires(src -> src.hasPermission(2))
+                .then(top.hibermod.ctdscript.command.DisplayCommand.build())
+                .then(top.hibermod.ctdscript.command.FixInteractorsCommand.build())
                 .then(Commands.literal("broadcast")
                     .executes(ctx -> {
                         ctx.getSource().sendSuccess(
