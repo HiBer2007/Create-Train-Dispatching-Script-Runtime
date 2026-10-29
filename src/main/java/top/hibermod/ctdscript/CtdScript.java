@@ -68,6 +68,9 @@ public final class CtdScript {
         top.hibermod.ctdscript.broadcast.BroadcastLog.configure(
             FMLPaths.CONFIGDIR.get().resolve("ctd"));
         BROADCAST.chain().register(new top.hibermod.ctdscript.broadcast.LogVoiceSource());
+
+        // 宿主报「车接近/停稳/离站」，这里接上广播：装好即响，无需写胶水
+        top.hibermod.ctdscript.broadcast.StationEvents.attach();
         top.hibermod.ctdscript.content.EngineBlocks.registerInteractions();
 
         // 美术资源：把脚本的 assets/ 复制成资源包，并为每个方块合成模型 JSON。
