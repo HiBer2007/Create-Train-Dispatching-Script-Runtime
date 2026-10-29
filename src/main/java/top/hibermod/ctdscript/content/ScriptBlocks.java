@@ -52,8 +52,9 @@ public final class ScriptBlocks {
         return beType;
     }
 
+    /** 脚本方块与引擎方块共用一页。 */
     public static CreativeModeTab tab() {
-        return tab;
+        return EngineBlocks.tab();
     }
 
     private static void onRegister(RegisterEvent event) {
@@ -84,28 +85,7 @@ public final class ScriptBlocks {
                     new Item.Properties()));
             }
 
-        } else if (event.getRegistryKey().equals(Registries.CREATIVE_MODE_TAB)) {
-            tab = CreativeModeTab.builder()
-                .title(Component.translatable("itemGroup.ctdscript.content"))
-                .icon(ScriptBlocks::firstItemStack)
-                .displayItems((params, output) -> {
-                    for (BlockDefinition def : ContentRegistry.blocks()) {
-                        Item item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(def.id());
-                        if (item != null) output.accept(new ItemStack(item));
-                    }
-                })
-                .build();
-            event.register(Registries.CREATIVE_MODE_TAB,
-                ResourceLocation.fromNamespaceAndPath("ctdscript", "content"), () -> tab);
         }
-    }
-
-    private static ItemStack firstItemStack() {
-        for (BlockDefinition def : ContentRegistry.blocks()) {
-            Item item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(def.id());
-            if (item != null) return new ItemStack(item);
-        }
-        return new ItemStack(net.minecraft.world.item.Items.BARRIER);
     }
 
     private static BlockBehaviour.Properties properties(BlockDefinition def) {

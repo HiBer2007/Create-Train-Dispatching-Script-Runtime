@@ -57,6 +57,7 @@ public final class CtdScript {
         // 方块必须在注册事件里进注册表：先跑脚本收集定义，再挂注册监听。
         loadStartupScripts();
         top.hibermod.ctdscript.content.ScriptBlocks.attach(modBus);
+        top.hibermod.ctdscript.content.EngineBlocks.attach(modBus);
 
         // 美术资源：把脚本的 assets/ 复制成资源包，并为每个方块合成模型 JSON。
         // 必须在资源加载之前——也就是现在（构造期）。

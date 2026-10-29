@@ -1,3 +1,6 @@
 {
-  "itemGroup.ctdscript.content": "CTD Script Content"
+  "itemGroup.ctdscript.content": "CTD Content",
+  "block.ctdscript.onboard_display": "Onboard Display",
+  "block.ctdscript.onboard_display.on": "Onboard display: indicator ON",
+  "block.ctdscript.onboard_display.off": "Onboard display: indicator OFF"
 }

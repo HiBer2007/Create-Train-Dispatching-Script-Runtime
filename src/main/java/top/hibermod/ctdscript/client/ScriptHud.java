@@ -194,10 +194,38 @@ public final class ScriptHud {
             var carriage = cce.getCarriage();
             if (carriage == null || carriage.train == null) return null;
 
+            // 第三层闸门：车上必须装了**已启用**的车载显示设备。
+            // 没有设备的货车、或设备关着的车，一律不显示——开关属于车，不属于人。
+            if (!hasEnabledDisplay(cce)) return null;
+
             var train = carriage.train;
             String name = train.name == null ? "" : train.name.getString();
             return new HudState(train.speed, train.targetSpeed, 0, true, name,
                 "", "", 0, mc.level == null ? 0 : mc.level.getGameTime());
+        }
+
+        /**
+         * 构造物里是否存在**已启用**的车载显示设备。
+         *
+         * <p>方块被组装到车上时，Create 把方块实体的 NBT 原样存进
+         * {@code StructureBlockInfo.nbt()}，所以这里查的是那份快照，
+         * 不需要方块实体本身（客户端也不一定有）。
+         */
+        static boolean hasEnabledDisplay(
+                com.simibubi.create.content.trains.entity.CarriageContraptionEntity cce) {
+            var contraption = cce.getContraption();
+            if (contraption == null) return false;
+
+            net.minecraft.world.level.block.Block device =
+                top.hibermod.ctdscript.content.EngineBlocks.onboardBlock();
+            if (device == null) return false;
+
+            for (var info : contraption.getBlocks().values()) {
+                if (!info.state().is(device)) continue;
+                var nbt = info.nbt();
+                if (nbt != null && nbt.getBoolean("enabled")) return true;
+            }
+            return false;
         }
     }
 }
