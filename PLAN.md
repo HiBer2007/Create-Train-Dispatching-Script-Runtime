@@ -350,16 +350,16 @@ L1 (标志进镜像) ──► L2 (区间限速) ──► L3 (脚本动作)
 | C | C4 遥测：速度 / 位置 / **里程** / **车载制度** | ✅ 本轮 | `Odometers` 累计里程；`signalSystemsOf()` 从构造物读设备 |
 | C | C4b 遥测：进路状态 `route` | ✅ 本轮 | `out.route(车, 终点, 边序列, 优先级, 原因)` → `Command.RouteRequest` → `RouteApplier` 分配 id、算剩余长度与需锁岔口 → 回填 `TrainState.route` |
 | C | C4c 遥测：能源样本 `energy` | ✅ 本轮 | 走 `Interop.sampleEnergy()` 聚合已注册的提供方；一个都没有时返回 `UNKNOWN` 并在 `/ctd host status` 注明「没有联动方，列车照常运行」 |
-| C | C5 指令执行（速度钳位） | ✅ | `TrainApplier` 取 min |
-| C | C6 信号写入 + 客户端显示 | 🟡 | 内核已写 `SignalStates`（`aspects=2`），灯色未人工确认 |
+| C | C5 指令执行（速度钳位） | ✅ 本轮实测 | `speed=0.350 blocked=false`（脚本开车），到轨道尽头转 `blocked=true` |
+| C | C6 信号写入 + 客户端显示 | ✅ 写入 / 🟡 灯色 | 内核把两架信号机写成 `ctd:clear`（日志逐面确认）；客户端灯色仍待人工看一眼 |
 | C | C7 道岔翻译（逻辑锁） | ✅ | `SwitchApplier` 锁 + 持有者 |
 | C | C7b 道岔物理扳动 | ✅ 本轮 | `PhysicalSwitches` 通过 `railways:switch` 边点调 `trySetSwitchState`；未装汽鸣铁道时自动退化为逻辑锁并在状态里注明 |
 | C | C8 存档持久化 | 🟡 | `KernelEnv.state()` 已接；`Restrictions`/`Emergency` 未验 |
 | C | C9 安全兜底 | ✅ | 连续失败禁用 + 注入自检 |
 | C | C10 ATO 接入主循环 | ✅ 本轮 | 宿主 `AtoPass` 在内核授权之后跑 `AtoEngine.decide()`，输出与内核限速取 `min`（只能收紧） |
 | B | B1–B4 全量重载 + 失败整批回滚 | ✅ 本轮 | 五个注册表全部纳入解冻/冻结；`reloadTest` 新增「连续重载两次」用例，覆盖 ATO 漏解冻的 bug |
-| D | Web 桥接 | 🟡 | `ctdweb` 有 `FrameCodec`/`RemoteKernel`/`TaskBroker` 骨架，未联调 |
-| F | 文档与实测 | 🟡 | `docs/22-test-checklist.md` 待人工过一遍 |
+| D | Web 桥接 | ✅ 本轮 | 真游戏 + 真 Python 进程：收到遥测 21 帧，`control hold -> accepted` |
+| F | 文档与实测 | ✅ 本轮 | `docs/17` 新增 §7（复现 + 八个诊断字段表）；`docs/18` 新增 0.3.0；灯色/道岔人工项仍待现场看 |
 
 **本轮（审查 + 修补）**：修掉了三个「有代码、无数据」的断点——内核拿到的信号快照恒空、
 里程恒为 0、每列车的信号系统恒空。这三处都属于「现象看起来像渲染/算法问题，
