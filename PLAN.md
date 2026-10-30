@@ -358,7 +358,7 @@ L1 (标志进镜像) ──► L2 (区间限速) ──► L3 (脚本动作)
 | C | C9 安全兜底 | ✅ | 连续失败禁用 + 注入自检 |
 | C | C10 ATO 接入主循环 | ✅ 本轮 | 宿主 `AtoPass` 在内核授权之后跑 `AtoEngine.decide()`，输出与内核限速取 `min`（只能收紧） |
 | B | B1–B4 全量重载 + 失败整批回滚 | ✅ 本轮 | 五个注册表全部纳入解冻/冻结；`reloadTest` 新增「连续重载两次」用例，覆盖 ATO 漏解冻的 bug |
-| D | Web 桥接 | ✅ 本轮 | 真游戏 + 真 Python 进程：收到遥测 21 帧，`control hold -> accepted` |
+| D | Web 桥接 | ✅ 闭环 | 外部 Python 进程**真的把车开到 0.300**：`speed=0.300 target=0.300 blocked=false` |
 | F | 文档与实测 | ✅ 本轮 | `docs/17` 新增 §7（复现 + 八个诊断字段表）；`docs/18` 新增 0.3.0；灯色/道岔人工项仍待现场看 |
 
 **本轮（审查 + 修补）**：修掉了三个「有代码、无数据」的断点——内核拿到的信号快照恒空、
@@ -642,3 +642,29 @@ CTD selftest — 全部通过
 
 它替代不了人工目视的三项（灯色、HUD、道岔物理位置），但能把「代码侧是否成立」
 从半小时的对照变成一行命令。
+
+**D 阶段闭环：外部进程开车**
+
+之前只证明了「外部进程能收到遥测、能扣车」。这一轮补上最后一段：
+
+```
+Python 进程 → WebSocket → RemoteKernel → ControlChannel(EXTERNAL)
+            → SpeedApplier → SpeedControl → Train#tick → 列车
+```
+
+实测（脚本内核全部停用，只留网页桥的内核）：
+
+```
+train : speed=0.300 target=0.300 blocked=false
+```
+
+`0.300` 是客户端里写死的 `CAP`，不是任何脚本给的数——**这个数字只可能来自那个 Python 进程**。
+
+和脚本内核走的是两条不同的路：
+
+| 入口 | 机制 | 优先级 |
+|---|---|---|
+| 脚本内核 | `DispatchKernel` → 本帧 `out` | 按提交顺序 |
+| 外部程序 | `RemoteKernel` → `ControlChannel.EXTERNAL` | 低于玩家、高于自动化 |
+
+两条都独立成立，意味着「谁能开车」不再只有一个入口。
