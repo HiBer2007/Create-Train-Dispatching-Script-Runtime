@@ -353,7 +353,7 @@ L1 (标志进镜像) ──► L2 (区间限速) ──► L3 (脚本动作)
 | C | C5 指令执行（速度钳位） | ✅ | `TrainApplier` 取 min |
 | C | C6 信号写入 + 客户端显示 | 🟡 | 内核已写 `SignalStates`（`aspects=2`），灯色未人工确认 |
 | C | C7 道岔翻译（逻辑锁） | ✅ | `SwitchApplier` 锁 + 持有者 |
-| C | C7b 道岔物理扳动 | ❌ | `switchTypeOrNull()` 仍是占位，无调用者 |
+| C | C7b 道岔物理扳动 | ✅ 本轮 | `PhysicalSwitches` 通过 `railways:switch` 边点调 `trySetSwitchState`；未装汽鸣铁道时自动退化为逻辑锁并在状态里注明 |
 | C | C8 存档持久化 | 🟡 | `KernelEnv.state()` 已接；`Restrictions`/`Emergency` 未验 |
 | C | C9 安全兜底 | ✅ | 连续失败禁用 + 注入自检 |
 | C | C10 ATO 接入主循环 | ✅ 本轮 | 宿主 `AtoPass` 在内核授权之后跑 `AtoEngine.decide()`，输出与内核限速取 `min`（只能收紧） |
