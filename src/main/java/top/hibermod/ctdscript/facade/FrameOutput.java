@@ -69,10 +69,17 @@ public final class FrameOutput {
         trace("held " + trainId + ": " + (reason == null ? "" : reason));
     }
 
-    /** 给定距离授权与限速。 */
+    /**
+     * 同 {@link #proceed(String, double, double)}，但可以指定方向。
+     *
+     * <p>倒车不是「换一条线」，而是目标速度取负：Create 用 speed 的符号决定
+     * 车厢往前还是往后推进。早先只发 KEEP，于是车头被堵在轨道尽头时
+     * 无论怎么下指令都开不动。
+     *
+     * @param direction {@code "forward"} / {@code "reverse"} / {@code "keep"}
+     */
     @HostAccess.Export
-    public void proceed(String trainId, double authority, double speedCap) {
-        // 记下这次授权：显示器/诊断要读它，不该各自去问内核
+    public void proceed(String trainId, double authority, double speedCap, String direction) {
         UUID authId = requireId(trainId, "train id");
         if (authId != null) top.hibermod.ctdscript.bridge.KernelAuthority.put(authId, authority, speedCap);
         UUID id = requireId(trainId, "train id");
@@ -81,7 +88,21 @@ public final class FrameOutput {
             frame.command(Command.TrainCommand.hold(id));
             return;
         }
-        frame.command(Command.TrainCommand.proceed(id, authority, speedCap));
+
+        Command.Direction dir = "reverse".equalsIgnoreCase(direction)
+            ? Command.Direction.REVERSE
+            : "keep".equalsIgnoreCase(direction) ? Command.Direction.KEEP : Command.Direction.FORWARD;
+
+        frame.command(new Command.TrainCommand(
+            id, dir,
+            Math.max(0, authority), Math.max(0, speedCap),
+            false, null));
+    }
+
+    /** 便捷写法：方向维持当前朝向。 */
+    @HostAccess.Export
+    public void proceed(String trainId, double authority, double speedCap) {
+        proceed(trainId, authority, speedCap, "keep");
     }
 
     /** 同时指定授权、限速与是否保持。{@code hold=true} 时授权被忽略。 */
