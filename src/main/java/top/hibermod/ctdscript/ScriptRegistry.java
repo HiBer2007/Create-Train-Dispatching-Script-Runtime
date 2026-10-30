@@ -25,7 +25,7 @@ public final class ScriptRegistry {
 
     /** 注册项类别，决定回滚时用哪个 register 方法。 */
     public enum Kind {
-        LAMP, ASPECT, SIGNAL_TYPE, SIGNAL_SYSTEM, DEVICE_TYPE, SERVICE
+        LAMP, ASPECT, SIGNAL_TYPE, SIGNAL_SYSTEM, DEVICE_TYPE, SERVICE, HUD
     }
 
     /** 一条记录。{@code value} 是注册时传进去的那个对象。 */
@@ -90,6 +90,11 @@ public final class ScriptRegistry {
                             (top.hibermod.ctdapi.device.Devices.DeviceType) e.value());
                         restored++;
                     }
+                    case HUD -> {
+                        top.hibermod.ctdscript.content.ContentRegistry.addHud(
+                            (top.hibermod.ctdscript.content.HudDefinition) e.value());
+                        restored++;
+                    }
                     case SERVICE -> {
                         top.hibermod.ctdapi.timetable.Service.register(
                             (top.hibermod.ctdapi.timetable.Service) e.value());
@@ -115,6 +120,7 @@ public final class ScriptRegistry {
                     top.hibermod.ctdapi.signal.SignalRegistries.remove(e.id());
                 case DEVICE_TYPE -> top.hibermod.ctdapi.device.Devices.remove(e.id());
                 case SERVICE -> top.hibermod.ctdapi.timetable.Service.remove(e.id());
+                case HUD -> top.hibermod.ctdscript.content.ContentRegistry.removeHud(e.id());
             };
             if (ok) removed++;
         }

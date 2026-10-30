@@ -53,6 +53,16 @@ public final class ScriptReloader {
     /**
      * 全量重载。五类脚本全部重跑；任一失败则整批回滚。
      */
+    /**
+     * 热重载只跑这些目录。
+     *
+     * <p>{@code hud} 在列表里，因为它是屏幕数据、没有注册表约束；
+     * {@code signal} / {@code device} / {@code timetable} / {@code block} 不在，
+     * 它们必须在启动期一次成型。
+     */
+    public static final java.util.List<String> RELOADABLE_DIRS =
+        java.util.List.of("kernel", "ato", "broadcast", "hud");
+
     public Result reload() {
         List<ScriptRegistry.Entry> snapshot = ScriptRegistry.snapshot();
         try {
@@ -72,7 +82,13 @@ public final class ScriptReloader {
 
             // ② 新运行时跑全量
             runtime = new ScriptRuntime();
-            ScriptLoader.Report report = new ScriptLoader(runtime, root).loadAll();
+            // 只重跑**可重载**目录。
+            //
+            // signal/device/timetable/block 属于启动期定义：方块在 NeoForge 注册表关闭后
+            // 根本加不进去，重跑它们必然是失败 + 整批回滚。以前不分目录，所以任何带
+            // block/ 或 hud/ 脚本的世界里 `/ctd reload` **永远失败**，
+            // 而失败信息看起来像「某个脚本写错了」。
+            ScriptLoader.Report report = new ScriptLoader(runtime, root).loadAll(RELOADABLE_DIRS);
 
             // ③ 有失败 → 整批回滚
             if (!report.failures().isEmpty()) {
@@ -129,11 +145,17 @@ public final class ScriptReloader {
 
         // ATO 与能源提供方也必须在列：漏掉任何一个，第一次重载能用、
         // 第二次起脚本全部加载失败，而症状看起来像「脚本写错了」。
+        // HUD 不是方块：重载要重跑 hud/ 下的脚本，所以只放开这一半。
+        // 不放开的话，任何带 hud 脚本的世界里 `/ctd reload` 都会整批回滚——
+        // 而且回滚本身是成功的，从外面看只像「重载没生效」。
+        top.hibermod.ctdscript.content.ContentRegistry.reopenHuds();
+
         top.hibermod.ctdapi.ato.AtoEngines.unfreeze();
         top.hibermod.ctdapi.interop.Interop.unfreeze();
     }
 
     public static void freezeAll() {
+        top.hibermod.ctdscript.content.ContentRegistry.sealHuds();
         try {
             ApiCatalog.freezeAll();
         } catch (IllegalStateException e) {

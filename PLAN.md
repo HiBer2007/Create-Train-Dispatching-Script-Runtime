@@ -178,7 +178,7 @@ F（收尾）              ← 必须
 | 阶段 | 状态 | 备注 |
 |---|---|---|
 | A | ✅ **完成** | A1–A8 全部实现并验收：`railCodecTest` 10 项、`deviceSwitchBridgeTest` 13 项 |
-| B | ✅ **完成** | 全量重载（五类全可重载）+ 整批回滚 + 沙箱六项 + `disabled/` + 耗时统计。`reloadTest` 8 项、`sandboxTest` 6 项全绿 |
+| B | ✅ **完成（本轮修复）** | 之前 `/ctd reload` 在任何带 `block/` 或 `hud/` 脚本的世界里**永远回滚**；现在按目录区分，实测 `reloaded 7/7` |
 | C | ✅ **完成（除环境阻塞项）** | 宿主全部落地；帧刻 3:1、镜像 `nodes=2 edges=1`、遥测 `trains=1`、速度钳位 `0.350`、信号写入 12 项、指派 → `Schedule`；脚本可加载并驱动列车。**未验**：列车位移（四级失败链已定论，见 `DebugTrainCommand` 注释与 `docs/19` §4）、道岔物理扳动 |
 | D | ✅ **完成** | `ctdweb` 仓库：WebSocket 桥（手写服务端，零依赖）+ 编解码 + 断线三策略。`bridgeTest` 18 项全绿 |
 | E | ✅ **完成** | `TaskBroker`：提交/取回/超时/去重，常数时间不阻塞。跨语言实测（Python 标准库客户端） |
@@ -1042,3 +1042,39 @@ forwarded   : devices=7 energy=0 ... deviceCmds=1/7
 | 老的 `forwarded` 仍然照常工作 | `devices=7` |
 
 诊断内核用完即停用（`disabled/kernel/device_probe.py`），不留在常规加载路径里。
+
+**B 阶段的真 bug：`/ctd reload` 一直是失败的**
+
+服务端日志里反复出现：
+
+```
+block registration is closed: content definitions are startup-only
+hud registration is closed: content definitions are startup-only
+reload failed (1-3 failures), rolled back 11 registrations
+```
+
+也就是说 **`/ctd reload` 在任何带 `block/` 或 `hud/` 脚本的世界里永远失败**。
+而且失败是「优雅」的：整批回滚成功，系统继续按旧脚本跑，
+从外面看只像「重载没生效」——我还据此判断过「改完脚本没反应」。
+
+两个根因：
+
+| 根因 | 现象 | 修法 |
+|---|---|---|
+| HUD 被当成启动期内容 | `hud/demo.py` 每次都失败 | HUD 是屏幕数据，没有注册表约束：`ContentRegistry.reopenHuds()` 在重载期间只放开这一半 |
+| 重载重跑了**全部**目录 | `block/demo.py` 必然失败（方块进不了已关闭的注册表） | `RELOADABLE_DIRS = kernel, ato, broadcast, hud`；signal/device/timetable/block 属于启动期 |
+
+另外把 HUD 纳入了 `ScriptRegistry`（新增 `Kind.HUD`），否则回滚时 HUD 恢复不回来——
+它以前只进 `ContentRegistry`，`removeAll`/`restore` 都碰不到它。
+
+实测（同一世界连续两次）：
+
+```
+reloaded 7/7 scripts loaded, restored=7
+reloaded 7/7 scripts loaded, restored=7
+selftest — 全部通过
+```
+
+**这一条推翻了我此前「B 阶段完成」的判断**：`reloadTest` 用的是只含
+`signal/timetable/ato` 的临时目录，恰好绕开了 `block/` 与 `hud/`。
+测试通过、真实世界失败——这是本仓库里第二例「测试目录与真实目录不一致」。

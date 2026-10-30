@@ -73,6 +73,27 @@ public final class ContentRegistry {
         sealed = true;
     }
 
+    /**
+     * 只放开 HUD，方块仍然封着。
+     *
+     * <p>HUD 是脚本画在屏幕上的数据，没有方块/纹理那种「注册之后无法补」的约束；
+     * 而方块必须留在启动期。热重载要重跑 {@code hud/} 下的脚本，所以只重开这一半。
+     */
+    public static synchronized void reopenHuds() {
+        HUDS.clear();
+        hudsOpen = true;
+    }
+
+    /** 重载结束后重新封上 HUD。 */
+    public static synchronized void sealHuds() {
+        hudsOpen = false;
+    }
+
+    /** 移除一个 HUD（热重载撤销用）。 */
+    public static synchronized boolean removeHud(net.minecraft.resources.ResourceLocation id) {
+        return HUDS.removeIf(d -> d.id().equals(id));
+    }
+
     public static boolean isSealed() {
         return sealed;
     }
@@ -84,8 +105,10 @@ public final class ContentRegistry {
         sealed = false;
     }
 
+    private static boolean hudsOpen;
+
     private static void requireOpen(String what) {
-        if (sealed) {
+        if (sealed && !("hud".equals(what) && hudsOpen)) {
             throw new IllegalStateException(
                 what + " registration is closed: content definitions are startup-only "
                     + "(blocks and textures cannot be added after the registries open)");

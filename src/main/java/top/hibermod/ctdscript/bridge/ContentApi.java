@@ -90,7 +90,11 @@ public final class ContentApi {
     @HostAccess.Export
     public String hud(String namespace, String path, Value draw, int intervalTicks, int order) {
         ResourceLocation id = ResourceLocation.fromNamespaceAndPath(namespace, path);
-        ContentRegistry.addHud(new HudDefinition(id, draw, intervalTicks, order));
+        HudDefinition def = new HudDefinition(id, draw, intervalTicks, order);
+        ContentRegistry.addHud(def);
+        // 记进 ScriptRegistry：否则回滚时恢复不了它，重启前一直缺
+        top.hibermod.ctdscript.ScriptRegistry.add(
+            top.hibermod.ctdscript.ScriptRegistry.Kind.HUD, id, def);
         return id.toString();
     }
 
