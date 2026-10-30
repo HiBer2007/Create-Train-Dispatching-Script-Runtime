@@ -356,7 +356,7 @@ L1 (标志进镜像) ──► L2 (区间限速) ──► L3 (脚本动作)
 | C | C7b 道岔物理扳动 | ✅ 本轮 | `PhysicalSwitches` 通过 `railways:switch` 边点调 `trySetSwitchState`；未装汽鸣铁道时自动退化为逻辑锁并在状态里注明 |
 | C | C8 存档持久化 | ✅ 本轮实测 | 写入 → `/stop` → 重启 → 读回 `world/data/ctdhost.dat`；`Env.state()` 已接真实存档 |
 | C | C9 安全兜底 | ✅ | 连续失败禁用 + 注入自检 |
-| C | C10 ATO 接入主循环 | ✅ 本轮 | 宿主 `AtoPass` 在内核授权之后跑 `AtoEngine.decide()`，输出与内核限速取 `min`（只能收紧） |
+| C | C10 ATO 接入主循环 | ✅ 本轮补测 | `atoPassTest` 10 项：只收紧/手动不接管/无制度缺席/坏引擎 10 次禁用/null 不干预 |
 | B | B1–B4 全量重载 + 失败整批回滚 | ✅ 本轮 | 五个注册表全部纳入解冻/冻结；`reloadTest` 新增「连续重载两次」用例，覆盖 ATO 漏解冻的 bug |
 | D | Web 桥接 | ✅ 闭环 | 外部 Python 进程**真的把车开到 0.300**：`speed=0.300 target=0.300 blocked=false` |
 | F | 文档与实测 | ✅ 本轮 | `docs/17` 新增 §7（复现 + 八个诊断字段表）；`docs/18` 新增 0.3.0；灯色/道岔人工项仍待现场看 |
@@ -853,3 +853,28 @@ ctdweb     controlTest              8    0
 离线验收现在 **16 个任务 / 164 项检查**。
 
 剩下一项 `AtoPass` 依赖 Create 的 `Train`，只能进游戏验，暂标 🟡。
+
+**最后一项：`AtoPass` 也能离线测了（10 项）**
+
+它原本「只能进游戏验」，因为它直接读 `Create.RAILWAYS.trains`。
+把「拿列车 / 改目标速度」抽成 `TrainAccess` 之后，四条规则都能在没有世界的情况下验证：
+
+| 规则 | 写错的后果 | 测试 |
+|---|---|---|
+| 与内核取 min | ATO 会压过调度权限 | ATO 更紧取 ATO；ATO 更松取内核 |
+| 手动/脱轨不接管 | 跟司机抢方向盘 | `manuallyDriven` 时 `apply=0` 且目标速度不变 |
+| 没有匹配制度就缺席 | 没装车载设备的车被接管 | 空 `signalSystems` → 不接管 |
+| 连续失败 10 次禁用 | 坏引擎每帧刷屏 | 跑 12 帧，计数停在 10，速度不变 |
+| 引擎返回 null | 本帧不该动 | 不接管，且**不算失败** |
+
+写测试时撞到的两个 API 事实：
+
+- `AtoEngine.Decision` 的组件是 `(traction, brake, targetSpeed, doors, hold, service, reason)`，
+  不是我凭印象写的顺序——**靠猜会静默写错**（编译器只会在类型不匹配时报警）。
+- `AtoEngines.freeze()` 会校验「ATO 指向的制度必须已注册」，
+  所以测试里不能用自造的 `ctd:test_system`，得先 `SignalRegistries.bootstrap()`。
+
+离线验收现在 **17 个任务 / 174 项检查**。
+
+至此 PLAN 里所有标 ✅ 的条目都有可重跑的验证方式；
+剩下 🟡 的只有三项目视（灯色 / HUD / 道岔物理位置）与未实现的 K4。
