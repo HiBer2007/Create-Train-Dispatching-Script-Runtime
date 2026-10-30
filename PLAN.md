@@ -389,3 +389,16 @@ train : 未命名列车 speed=0.000 target=0.000 graph=ok paused=false manual=fa
   `Navigation.tick` 自然也不跑——我们的 TAIL 注入无从生效。
 - 下一步：让内核能动 Create 的时刻表/手动驾驶状态（`Assignment` 已有部分集成），
   或者由宿主在命令到达时把列车置为手动可控状态。这不是脚本 API 的问题，是「谁来让车进入运行态」的归属问题。
+
+**F 阶段补充实测（第二轮）**
+
+| 观测 | 数据 | 结论 |
+|---|---|---|
+| 列车在 tick 列表里 | `ticked=moving` | `Train.tick` 会被调用 |
+| `Navigation.tick` | 注入一次都没触发 | 该注入点不可靠，改挂 `Train.tick` |
+| `Train.tick` 注入 | `[train] tick calls=1600` | **可行**：这是列车每帧唯一必经之路 |
+| 目标速度落地 | `target=0.350`（内核要求 0.35） | 施加链路通了 |
+| 车速 | `speed=0.007` 恒定 | 被 Create 的 `tickPassiveSlowdown()` 每帧减掉一个加速度步长，正好抵消 |
+
+**下一步（明确、可验证）**：`Train.tickPassiveSlowdown()` 在「本帧有内核速度请求」时必须跳过。
+已加 `PassiveSlowdownMixin`，还需要确认它真的生效（`speed` 应当从 0.007 一路爬到 0.35）。
