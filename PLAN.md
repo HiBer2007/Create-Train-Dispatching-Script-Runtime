@@ -988,3 +988,36 @@ train : speed=0.350 target=0.350 blocked=false    ← 连续两次采样
 
 修法不是再打补丁，而是**整文件重写**：这个脚本我完全知道内容，重写比逐行修复可靠。
 `docs/19` §8 早就写着「脚本化改源码超过两处插入就该整文件重写」，这次是它救的场。
+
+**设备指令不再「数一下就丢」（C 阶段 A4–A6 的落点）**
+
+以前的路径是：
+
+```java
+for (Command.DeviceCommand c : commands) {
+    OperationFeed.deviceCommand(c);
+    forwardedDevices++;        // ← 数了一下
+}
+```
+
+脚本发「开站台门」，宿主计数 +1，然后**什么也没发生**，事后也无从查证发过什么。
+`/ctd host status` 里那行 `forwarded: devices=N` 看起来像「已经转交了」。
+
+现在新增 `DeviceCommands`：
+
+| 能力 | 说明 |
+|---|---|
+| 按设备 id 记住最后一条指令 | 后一条覆盖前一条，设备数不增长 |
+| 时间戳与 holder | 能回答「谁在什么时候让它开的」 |
+| `accepted / rejected` | 坏指令（空 deviceId）被拒绝并计数，不污染已有记录 |
+| `snapshot()` | 按 id 排序，输出稳定 |
+
+状态行多了一段：`forwarded: ... deviceCmds=<设备数>/<接受条数>`。
+
+`deviceCommandsTest` 17 项：记录 / 覆盖 / 多设备互不影响 / 拒绝 / 空负载 /
+排序 / 清空。
+
+**边界仍然清楚**：它不解释 payload。门、屏、计轴器的语义属于各自的设备实现；
+宿主这一层只保证「收到、存下、查得到、可追溯」。
+
+离线验收现在 **21 个任务 / 241 项检查**。
