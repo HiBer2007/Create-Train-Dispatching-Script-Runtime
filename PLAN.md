@@ -402,3 +402,23 @@ train : 未命名列车 speed=0.000 target=0.000 graph=ok paused=false manual=fa
 
 **下一步（明确、可验证）**：`Train.tickPassiveSlowdown()` 在「本帧有内核速度请求」时必须跳过。
 已加 `PassiveSlowdownMixin`，还需要确认它真的生效（`speed` 应当从 0.007 一路爬到 0.35）。
+
+**F 阶段第三轮：`speed=0.007` 的完整因果链（已闭环）**
+
+```
+kernel out.proceed(train, 2000, 0.5)
+  → SpeedApplier 收敛为 0.35（与 hold_all 的 0.35 取 min）并登记
+  → Train#tick TAIL 施加（[train] tick calls=1600 证明这一层在跑）
+  → target=0.350 ✓（遥测可见）
+  → PassiveSlowdownMixin 拦截被动减速（[passive] cancelled=1600 证明拦截生效）
+  → 但 carriage.travel 判定 blocked（train.status.track = end_of_track）
+  → Create 每帧 speed = 0；我们每帧 +1 步 → 恒定 0.0075
+```
+
+`blocked=true` 是本轮新加的状态字段，它把最后一个未知项确定了：
+**不是注入失效、不是减速抵消、不是红灯**——是列车停在轨道尽头，Create 拒绝让它移动。
+
+- 信号侧同时验证：`out.aspect(signal, side, "ctd:clear")` 真的把两架信号机写成了 `ctd:clear`
+  （`[green] signals=3bbf72fe=ctd:clear,...,a9dcfa61=ctd:clear`）。
+- 结论：`C` 阶段的「脚本真实驱动列车」在**管线层面已成立**（指令→收敛→施加→目标速度落地），
+  剩下的 0.007→0.35 需要一个**不在尽头**的轨道场景才能观测到。
