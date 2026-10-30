@@ -27,8 +27,13 @@ public final class ScriptReloader {
     /** 重载结果。 */
     public record Result(boolean success, ScriptLoader.Report report, int restored) {
         public String message() {
-            return (success ? "reloaded " : "ROLLED BACK ") + report.summary()
-                + ", restored=" + restored;
+            if (success) {
+                return "reloaded " + report.summary();
+            }
+            // 不再有回滚，"ROLLED BACK" 是假的。失败就是失败，而且要说清楚后果。
+            return "FAILED " + report.summary()
+                + " — no rollback; script kernels are not running until this is fixed"
+                + " (startup definitions still need a server restart if you changed those)";
         }
     }
 
@@ -63,6 +68,9 @@ public final class ScriptReloader {
     public static final java.util.List<String> RELOADABLE_DIRS =
         java.util.List.of("kernel", "ato", "broadcast", "hud");
 
+    private volatile boolean failed;
+    private volatile ScriptLoader.Report lastFailure;
+
     public Result reload() {
         List<ScriptRegistry.Entry> snapshot = ScriptRegistry.snapshot();
         try {
@@ -78,7 +86,16 @@ public final class ScriptReloader {
         top.hibermod.ctdscript.bridge.BroadcastApi.INSTANCE.reset();
             top.hibermod.ctdscript.bridge.AtoApi.INSTANCE.reset();
 
-            int removed = ScriptRegistry.removeAll(snapshot);
+            // 只撤掉**可重载**目录产生的注册项（目前只有 HUD）。
+            //
+            // 以前这里删掉整份快照，包括 signal/device/timetable ——
+            // 在「有回滚」的年代这没问题（失败就塞回去），
+            // 取消回滚之后它变成了真损失：一次失败的 `/ctd reload` 会永久抹掉
+            // 信号制度与交路，直到重启。重载本来就不该碰启动期定义。
+            var reloadableEntries = snapshot.stream()
+                .filter(e -> e.kind() == ScriptRegistry.Kind.HUD)
+                .toList();
+            int removed = ScriptRegistry.removeAll(reloadableEntries);
 
             // ② 新运行时跑全量
             runtime = new ScriptRuntime();
@@ -90,42 +107,71 @@ public final class ScriptReloader {
             // 而失败信息看起来像「某个脚本写错了」。
             ScriptLoader.Report report = new ScriptLoader(runtime, root).loadAll(RELOADABLE_DIRS);
 
-            // ③ 有失败 → 整批回滚
+            // ③ 有失败 → **不回滚，直接失败**。
+            //
+            // 自动回滚是个陷阱：它把「本该立刻炸出来的错误」变成一次安静的恢复。
+            // 我们为此付出过代价——`/ctd reload` 在带 block/ 或 hud/ 的世界里
+            // 一直失败并自动回滚，日志只有一行 WARN，系统照旧按旧脚本跑，
+            // 于是这个 bug 藏了好几轮，直到有人注意到「改了脚本却没反应」。
+            //
+            // 现在的语义：
+            //   · 不做任何 restore（不把旧条目塞回去）；
+            //   · 关掉新运行时，把失败状态**置位**并把每一条失败原样抛给调用方；
+            //   · 已注册的东西保持已注册——半成品就是半成品，但它是**可见**的；
+            //   · 宿主会因此停掉脚本内核（见 ScriptRuntimeHealth）。
             if (!report.failures().isEmpty()) {
-                unfreezeAll();
-                ScriptRegistry.removeAll(ScriptRegistry.snapshot());
-                int restored = ScriptRegistry.restore(snapshot);
+                closeRuntime();
+                failed = true;
+                lastFailure = report;
                 freezeAll();
-                LOG.warn("reload failed ({} failures), rolled back {} registrations",
-                    report.failures().size(), restored);
-                return new Result(false, report, restored);
+
+                LOG.error("reload FAILED: {} script(s) did not load; no rollback, "
+                    + "script kernels stay disabled until this is fixed", report.failures().size());
+                for (String failure : report.failures()) {
+                    LOG.error("  - {}", failure);
+                }
+
+                return new Result(false, report, 0);
             }
 
             // ④ 成功 → 重新冻结
+            failed = false;
+            lastFailure = null;
             freezeAll();
             LOG.info("reloaded {} scripts ({} replaced)", report.ok(), removed);
             return new Result(true, report, report.ok());
         } catch (Throwable t) {
-            LOG.error("reload crashed, rolling back", t);
+            // 崩溃同样不回滚：保留现场，让失败可见。
+            LOG.error("reload crashed; no rollback, script kernels stay disabled", t);
             if (runtime != null) {
                 runtime.close();
                 runtime = null;
             }
+            failed = true;
             try {
-                unfreezeAll();
-                ScriptRegistry.removeAll(ScriptRegistry.snapshot());
-                int restored = ScriptRegistry.restore(snapshot);
                 freezeAll();
-                return new Result(false,
-                    new ScriptLoader.Report(0, 0, List.of(String.valueOf(t))), restored);
             } catch (Throwable t2) {
-                LOG.error("rollback itself failed", t2);
-                return new Result(false,
-                    new ScriptLoader.Report(0, 0, List.of(String.valueOf(t))), 0);
+                LOG.error("freeze after crash also failed", t2);
             }
+            return new Result(false,
+                new ScriptLoader.Report(0, 0, List.of(String.valueOf(t))), 0);
         }
     }
 
+    /**
+     * 上一次重载是否失败。
+     *
+     * <p>宿主据此停掉脚本内核——失败之后还在跑「一半新一半旧」的脚本，
+     * 比彻底停下更难查。
+     */
+    public boolean failed() {
+        return failed;
+    }
+
+    /** 上一次失败的报告，供命令与诊断输出。 */
+    public ScriptLoader.Report lastFailure() {
+        return lastFailure;
+    }
     public void close() {
         closeRuntime();
     }

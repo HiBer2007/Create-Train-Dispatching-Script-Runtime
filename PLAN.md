@@ -1078,3 +1078,49 @@ selftest — 全部通过
 **这一条推翻了我此前「B 阶段完成」的判断**：`reloadTest` 用的是只含
 `signal/timetable/ato` 的临时目录，恰好绕开了 `block/` 与 `hud/`。
 测试通过、真实世界失败——这是本仓库里第二例「测试目录与真实目录不一致」。
+
+**取消自动回滚：失败必须是失败**
+
+用户的要求很直接：**自动回滚脚本/方法这种行为不应当存在**——它会造成意料之外的错误，
+而且把本该被发现的致命错误直接抛弃，等到生产环境才炸。
+
+这个判断被本项目的历史证实：`/ctd reload` 在带 `block/` 或 `hud/` 的世界里
+**每一轮都失败并自动回滚**，日志只有一行 WARN，系统照旧跑旧脚本。
+所以那个 bug 藏了好几轮，我甚至据此判断过「改了脚本没反应」。
+
+### 改动
+
+| 之前 | 现在 |
+|---|---|
+| 失败 → `restore(snapshot)` 把旧条目塞回去 | **不做任何 restore** |
+| 日志 `warn: reload failed, rolled back N` | `error: reload FAILED: N script(s) did not load; no rollback` + 逐条列出脚本名与异常 |
+| 命令输出 `ROLLED BACK 6/7` | `FAILED 6/7 ... — no rollback; script kernels are not running until this is fixed` |
+| 重载会删掉**整份**快照（含 signal/timetable） | 只删**可重载**目录产生的条目（目前是 HUD） |
+
+最后一条尤其重要：有回滚的年代，删掉启动期定义还能塞回去；
+**取消回滚后它就是真损失**——一次失败的 `/ctd reload` 会永久抹掉信号制度与交路，直到重启。
+重载本来就不该碰启动期定义。
+
+### 实测（真服务端，三段连续）
+
+```
+reloaded 7/7 scripts loaded                      ← 正常
+FAILED 6/7 scripts loaded                        ← 改坏 kernel/hold_all.py
+- kernel/hold_all.py — RuntimeError: deliberate failure ...
+  — no rollback; script kernels are not running until this is fixed
+  (startup definitions still need a server restart if you changed those)
+reloaded 7/7 scripts loaded                      ← 修好（不需要重启）
+```
+
+日志同时是 `ERROR` 级：
+
+```
+[ctdscript/]: reload FAILED: 1 script(s) did not load; no rollback, script kernels stay disabled until this
+[ctdscript/]:   - kernel/hold_all.py — RuntimeError: deliberate failure @ SourceSection(...)
+```
+
+### 代价（写清楚，不藏）
+
+失败之后脚本内核**不再运行**——这是有意的：跑「一半新一半旧」的脚本比停下更难查。
+要恢复只需改好脚本再 `/ctd reload`；**改过启动期目录则必须重启服务器**。
+测试 `reloadTest` 已按新语义重写（14 项），并额外断言「启动期定义全程未被重载触碰」。
