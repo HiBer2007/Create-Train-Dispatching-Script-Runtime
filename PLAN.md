@@ -364,3 +364,28 @@ L1 (标志进镜像) ──► L2 (区间限速) ──► L3 (脚本动作)
 **本轮（审查 + 修补）**：修掉了三个「有代码、无数据」的断点——内核拿到的信号快照恒空、
 里程恒为 0、每列车的信号系统恒空。这三处都属于「现象看起来像渲染/算法问题，
 实际是数据根本没到」。
+
+### F 阶段：进游戏实测（进行中）
+
+| 项 | 状态 | 证据 / 结论 |
+|---|---|---|
+| 拓扑与信号 | ✅ | `nodes=28 edges=29 signals=2 aspects=2` |
+| 外部程序读遥测 | ✅ | Python 客户端收到 `1 train(s)` |
+| 外部程序下控制指令 | ✅ | `[ctdweb] control hold <uuid> -> accepted` |
+| 道岔/能源降级路径 | ✅ | `logical=0 physical=no (no Railways)`、`energy providers=0` |
+| **脚本驱动列车** | ❌ **未达成** | 见下 |
+
+**脚本驱动列车卡在哪（实测数据）**
+
+```
+train : 未命名列车 speed=0.000 target=0.000 graph=ok paused=false manual=false schedule=0
+```
+
+- 本轮修掉两个真 bug：① 「只能收紧」写成相对上一帧自身输出取 min → **扣车永久粘住**；
+  ② 内核在 `GlobalRailwayManager#tick` HEAD 写 `targetSpeed`，随后被
+  `Navigation.tick()` 覆盖 → 改成 `Navigation#tick` TAIL 施加（新增 `NavigationMixin` + `SpeedControl`）。
+- 仍然不动的原因：**Create 只 tick「运行中」的列车**。没有时刻表（`schedule=0`）的列车
+  既不进入 `movingTrains` 也不进 `waitingTrains`，`Train.tick` 不被调用，
+  `Navigation.tick` 自然也不跑——我们的 TAIL 注入无从生效。
+- 下一步：让内核能动 Create 的时刻表/手动驾驶状态（`Assignment` 已有部分集成），
+  或者由宿主在命令到达时把列车置为手动可控状态。这不是脚本 API 的问题，是「谁来让车进入运行态」的归属问题。
