@@ -1343,3 +1343,28 @@ PASS  无静默失败
 
 顺带更正一个说法：上一轮我写「CRN 集成已实测共存」，那只是**一次**观察；
 现在它才是可重跑的。
+
+## 共存检查泛化：`check-mod-coexistence.ps1 -JarPatterns <名字>`
+
+CRN 那个脚本已经能用了，但它只认 CRN。装汽鸣铁道时不能再写一份——所以抽成通用参数。
+
+```powershell
+# CRN（文档里的那条命令，现在是包装器）
+pwsh -NoProfile -File tools/check-crn-coexistence.ps1
+# 等价于
+pwsh -NoProfile -File tools/check-mod-coexistence.ps1 -JarPatterns createreailwaysnavigator,dragonlib
+# 装别的模组
+pwsh -NoProfile -File tools/check-mod-coexistence.ps1 -JarPatterns railway
+```
+
+十项检查不变：jar 在位 / 被加载 / 有 mixin 记录 / 零冲突 / selftest 9 项 / 拓扑 / 内核 / 无静默失败。
+
+**故意验证了失败路径**（一个检查如果不会失败，它只是装饰）：
+
+```
+pwsh ... -JarPatterns no-such-mod -SkipInGame
+  FAIL  jar 在位: no-such-mod  <- run/mods 里没有匹配 *no-such-mod* 的 jar
+共存检查失败: 1 项（没有可检查的 jar）     退出码 1
+```
+
+日志自动取 `run/server-*.log` 里最新的一份，所以换日志不用改参数。
