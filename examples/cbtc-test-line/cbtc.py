@@ -24,6 +24,16 @@ ASPECT_STOP = "ctd:stop"
 ASPECT_DARK = "ctd:dark"
 
 
+def route_for(train):
+    """沿列车当前进路取最近的几条边。
+
+    这里刻意只取「当前所在边」，不猜下一股：
+    猜错方向比不给进路更危险——车会按错误的股道算授权。
+    """
+    edge = train.leading_edge()
+    return edge if edge else ""
+
+
 def movement_authority(me, ahead):
     if ahead is None:
         return BIG_MA
@@ -62,6 +72,14 @@ class Cbtc:
                     continue
                 signal_id, side, current, edge = sig[0], sig[1], sig[2], sig[3]
                 if not edge:
+                    continue
+
+                # 一架信号机只属于一套制度：不归我们管的不碰
+                try:
+                    owner = ctx.system_of(signal_id)
+                except Exception:
+                    owner = ""
+                if owner and owner != "ctd:cbtc":
                     continue
 
                 if edge in occupied_by_other:
@@ -110,7 +128,19 @@ class Cbtc:
                     break
 
             ma = movement_authority(train, ahead)
-            cap = min(train.max_speed(), train.speed_for(ma)) if ma > MIN_MA else 0.0
+
+            # 许可速度同时受信号与线路约束：只按授权距离算，到了曲线上会超速
+            if ma > MIN_MA:
+                cap = min(train.speed_for(ma), train.curve_speed(), train.max_speed())
+            else:
+                cap = 0.0
+
+            # 进路：告诉宿主这条车要沿哪条边走。
+            # 没有进路时，分叉口的走向由 Create 自己决定——
+            # 两列车在同一个岔口会各算各的。
+            route = route_for(train)
+            if route:
+                out.route(train.id(), "", route, "PASSENGER", "cbtc automatic route")
 
             out.proceed(train.id(), ma, cap)
             driven += 1
