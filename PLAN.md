@@ -668,3 +668,29 @@ train : speed=0.300 target=0.300 blocked=false
 | 外部程序 | `RemoteKernel` → `ControlChannel.EXTERNAL` | 低于玩家、高于自动化 |
 
 两条都独立成立，意味着「谁能开车」不再只有一个入口。
+
+**发布核对：文档里的版本和产物对上了**
+
+`docs/16` 之前还写着 0.1.0，而且**命令表是旧的**——它列的 `/ctd list|scripts|reload|stats`
+是脚本侧的命令，宿主侧真正天天用的是 `/ctd host status` / `/ctd selftest`，一个都没写。
+
+现在 `docs/16` 按实际输出重写：
+
+| 项 | 之前 | 现在 |
+|---|---|---|
+| 版本 | 0.1.0 | 0.3.0（四个仓库一致） |
+| 启动日志 | 两行（其中一行已不存在） | 实际六行，含 `modules 版本` 与 `ctdweb: listening` |
+| 命令表 | 4 条脚本命令 | 宿主 9 条 + 脚本 7 条，分开列 |
+| 构建步骤 | 无 | JDK 21、三处 API jar 拷贝、`clean` 会被占用目录卡住的提醒 |
+| 已知限制 | 6 条里 3 条已过时 | 重新按现状写（L1 缓存、L2 物理扳动、K4、CRN） |
+
+顺带清掉全库残留的 `0.1.0`：`docs/10` 的版本行、`docs/12` 的示例输出、`docs/18` 的工件表。
+
+验收任务清单也补全了（可作为发版核对表）：
+
+```
+ctdscript: signalBridgeTest railCodecTest deviceSwitchBridgeTest kernelAtoBridgeTest reloadTest
+ctdweb   : bridgeTest taskBrokerTest controlTest
+```
+
+本轮实测 **ctdweb 三项全绿**（`FAIL=0`）。
