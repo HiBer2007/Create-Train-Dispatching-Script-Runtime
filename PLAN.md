@@ -754,3 +754,41 @@ ctdweb     controlTest              8    0
 它们都在各自仓库的 gradle 任务里，`tools/verify-all.ps1` 会一起跑。
 
 离线验收现在是 **15 个任务 / 147 项检查**。
+
+---
+
+## 状态快照（2026-10-30 17:39）
+
+### 已验证（可重跑）
+
+| 层 | 方式 | 结果 |
+|---|---|---|
+| 离线验收 | pwsh -NoProfile -File tools/verify-all.ps1 | **15 个任务 / 147 项，全绿** |
+| 游戏内代码侧 | /ctd selftest | **9 项全绿** |
+| 脚本驱动列车 | /ctd host status | speed=0.350 blocked=false（持续十余秒） |
+| 外部进程驱动 | 	ools/driving_client.py | speed=0.300 blocked=false |
+| 存档 | /ctd state put → /stop → 重启 → show | 值仍在，world/data/ctdhost.dat |
+| 信号写入 | 内核日志 | 两架信号机四面写成 ctd:clear |
+| 拓扑缓存 | status 的 ebuilds= | 稳态 1200 刻只重建 1 次 |
+
+### 未验证
+
+| 项 | 缺什么 |
+|---|---|
+| 灯色 / HUD 外观 / 道岔物理位置 | 需要人看着屏幕 |
+| K4 平台设备 | 规格未定，未实现 |
+| CRN 集成 | 缺对应 jar |
+
+### 本轮正在做、尚未完成
+
+审「标了 ✅ 但没有可重跑验证」的条目，目前已经查过：
+
+- ✅ SwitchApplierTest 16 项（上一轮补上）
+- ⏳ RouteApplier（进路分配 / 剩余长度 / 岔口合并）——**只依赖 API 类型，可离线测**
+- ⏳ Odometers（里程累加 / prune）——纯逻辑，可离线测
+- ⏳ AtoPass（ATO 主循环与内核取 min）——依赖 Create，只能进游戏验
+
+### 判据
+
+标 ✅ 必须有一种**可重跑**的验证方式（离线任务 / 游戏内命令 / 明确的人工步骤）。
+只是「编译通过」或「某次手工看过」，标 🟡。
