@@ -354,7 +354,7 @@ L1 (标志进镜像) ──► L2 (区间限速) ──► L3 (脚本动作)
 | C | C6 信号写入 + 客户端显示 | ✅ 写入 / 🟡 灯色 | 内核把两架信号机写成 `ctd:clear`（日志逐面确认）；客户端灯色仍待人工看一眼 |
 | C | C7 道岔翻译（逻辑锁） | ✅ | `SwitchApplier` 锁 + 持有者 |
 | C | C7b 道岔物理扳动 | ✅ 本轮 | `PhysicalSwitches` 通过 `railways:switch` 边点调 `trySetSwitchState`；未装汽鸣铁道时自动退化为逻辑锁并在状态里注明 |
-| C | C8 存档持久化 | 🟡 | `KernelEnv.state()` 已接；`Restrictions`/`Emergency` 未验 |
+| C | C8 存档持久化 | ✅ 本轮实测 | 写入 → `/stop` → 重启 → 读回 `world/data/ctdhost.dat`；`Env.state()` 已接真实存档 |
 | C | C9 安全兜底 | ✅ | 连续失败禁用 + 注入自检 |
 | C | C10 ATO 接入主循环 | ✅ 本轮 | 宿主 `AtoPass` 在内核授权之后跑 `AtoEngine.decide()`，输出与内核限速取 `min`（只能收紧） |
 | B | B1–B4 全量重载 + 失败整批回滚 | ✅ 本轮 | 五个注册表全部纳入解冻/冻结；`reloadTest` 新增「连续重载两次」用例，覆盖 ATO 漏解冻的 bug |
@@ -544,3 +544,35 @@ Done (0.850s)!
 
 **顺带修掉一个自伤的构建问题**：服务端日志原来写在 `build/` 里，导致 `gradlew clean` 报
 `Unable to delete directory 'build'`。日志已挪到 `run/`。
+
+**C8 存档持久化：写得好好的代码，从来没被调用过**
+
+`HostSavedData` 一直有 `save` / `load` / `kernelState` / `putKernelState`，
+但全仓库**没有一处实例化它**。真正的 `KernelEnv` 实现是这样的：
+
+```java
+private final CompoundTag tag = new CompoundTag();       // 每帧新建
+@Override public CompoundTag state() { return tag; }
+@Override public void markStateDirty() { }               // 空方法
+```
+
+于是脚本写进台账的任何东西，重启就没了，而且**不报错**——这类缺口只有「写一次、重启、读一次」才能发现。
+
+现在：
+
+```java
+HostSavedData.get(server)                    // 主世界 DataStorage，computeIfAbsent
+Env.state()      → data.kernelState(kernelId)
+Env.markStateDirty() → data.putKernelState(...) + setDirty()
+```
+
+实测（`/ctd state` 探针）：
+
+```
+/ctd state put hello world-0.3.0     → marked dirty
+/stop                                 → world/data/ctdhost.dat 落盘（133 B）
+重启服务端
+/ctd state show                       → state[ctdhost:probe] hello=world-0.3.0
+```
+
+内核 id 是真实参数（`Env(id)`），所以每个内核有自己的一份台账，互不覆盖。
