@@ -352,7 +352,7 @@ L1 (标志进镜像) ──► L2 (区间限速) ──► L3 (脚本动作)
 | C | C4c 遥测：能源样本 `energy` | ✅ 本轮 | 走 `Interop.sampleEnergy()` 聚合已注册的提供方；一个都没有时返回 `UNKNOWN` 并在 `/ctd host status` 注明「没有联动方，列车照常运行」 |
 | C | C5 指令执行（速度钳位） | ✅ 本轮实测 | `speed=0.350 blocked=false`（脚本开车），到轨道尽头转 `blocked=true` |
 | C | C6 信号写入 + 客户端显示 | ✅ 写入 / 🟡 灯色 | 内核把两架信号机写成 `ctd:clear`（日志逐面确认）；客户端灯色仍待人工看一眼 |
-| C | C7 道岔翻译（逻辑锁） | ✅ | `SwitchApplier` 锁 + 持有者 |
+| C | C7 道岔翻译（逻辑锁） | ✅ 本轮补测 | `switchApplierTest` **16 项**：上锁/解锁/冲突判定/多岔口互不干扰 |
 | C | C7b 道岔物理扳动 | ✅ 本轮 | `PhysicalSwitches` 通过 `railways:switch` 边点调 `trySetSwitchState`；未装汽鸣铁道时自动退化为逻辑锁并在状态里注明 |
 | C | C8 存档持久化 | ✅ 本轮实测 | 写入 → `/stop` → 重启 → 读回 `world/data/ctdhost.dat`；`Env.state()` 已接真实存档 |
 | C | C9 安全兜底 | ✅ | 连续失败禁用 + 注入自检 |
@@ -728,3 +728,29 @@ ctdweb     controlTest              8    0
 2. 三个从未跑过的任务（`loadPhaseTest` / `operationBridgeTest` / `sandboxTest`）
    这次全跑了一遍，共 15 项，全绿。之前 PLAN 写着「沙箱六项全绿」，
    但我自己从没在本轮跑过它——现在是真的跑过了。
+
+**C7 道岔逻辑锁：能力一直有，测试一直是零**
+
+道岔有两条路——逻辑锁（永远可用）与物理扳动（要装汽鸣铁道）。
+物理那条离线测不了，于是「道岔翻译」这项能力在 PLAN 里标了很久的 ✅，
+**但从来没有任何一条测试**。逻辑锁是进路冲突检查的基础：
+它错了，两列车会被排进同一股道，而现场看起来完全正常。
+
+本轮补上 `switchApplierTest`（16 项）：
+
+| 组 | 检查 |
+|---|---|
+| 未锁 | `lockOf` 空、不拦任何股道、holder=0 |
+| 上锁 | `apply` 计数、锁到指定股道、holder 记录 |
+| 冲突 | 同股道放行、异股道拦截 |
+| 解锁 | 锁消失、holder 归零、不再拦截 |
+| 多岔口 | 两把锁并存、holder 不串、互不影响 |
+| 幂等 | 重复上锁不增加条目、后锁覆盖前锁 |
+
+`SwitchApplier.apply` 只吃 `Command.SwitchCommand` 与纯数据 id，所以这个测试
+不需要世界、不需要 Create，跑起来只要十几秒。
+
+**顺带说明**：`signalApplierTest`（12 项）在 ctdhost，`assignmentsTest`（9 项）在 ctdapi——
+它们都在各自仓库的 gradle 任务里，`tools/verify-all.ps1` 会一起跑。
+
+离线验收现在是 **15 个任务 / 147 项检查**。
