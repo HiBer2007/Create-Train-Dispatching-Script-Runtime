@@ -69,21 +69,9 @@ public final class DisplayApi {
      */
     @HostAccess.Export
     public boolean train(String trainId, List<String> lines) {
-        if (trainId == null || trainId.isBlank()) return false;
-
-        var train = com.simibubi.create.Create.RAILWAYS.trains.get(java.util.UUID.fromString(trainId));
-        if (train == null) return false;
-
-        for (var carriage : train.carriages) {
-            var entity = carriage.anyAvailableEntity();
-            if (entity == null) continue;
-            if (top.hibermod.ctdscript.content.ContraptionBoards.set(
-                    (ServerLevel) entity.level(), entity,
-                    new ArrayList<>(lines == null ? List.of() : lines))) {
-                return true;
-            }
-        }
-        return false;
+        // 真正的实现在 TrainBoards 里：那个类碰 Create，
+        // 而本类在脚本绑定时就会被加载，不能被 Create 拖住
+        return top.hibermod.ctdscript.content.TrainBoards.write(trainId, lines);
     }
 
     /** 便捷写法：主世界。 */

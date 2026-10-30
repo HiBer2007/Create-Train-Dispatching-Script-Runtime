@@ -3,7 +3,9 @@ package top.hibermod.ctdscript.tools;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import top.hibermod.ctdapi.ApiCatalog;
+import net.minecraft.resources.ResourceLocation;
+
+import top.hibermod.ctdapi.ato.AtoEngines;
 import top.hibermod.ctdapi.signal.SignalRegistries;
 import top.hibermod.ctdapi.timetable.Service;
 import top.hibermod.ctdscript.ScriptRegistry;
@@ -12,12 +14,16 @@ import top.hibermod.ctdscript.ScriptReloader;
 /**
  * B1–B4 验收：全量热重载 + 失败整批回滚。
  *
- * <p>用临时目录当脚本站，覆盖三条路径：
+ * <p>用临时目录当脚本站，覆盖四条路径：
  * <ol>
- *   <li>首次加载成功；</li>
+ *   <li>首次加载成功（信号制度 + 交路 + ATO 三类一起）；</li>
  *   <li>改坏的脚本 → 整批回滚，注册表回到上一版；</li>
- *   <li>改好的脚本 → 重载成功，新条目生效。</li>
+ *   <li>改好的脚本 → 重载成功，新条目生效；</li>
+ *   <li><b>再重载一次</b> → ATO 注册表必须已解冻，否则第二次就废了。</li>
  * </ol>
+ *
+ * <p>第 4 条是补上的：早先只测到第一次重载。ATO 注册表第一次冻结后没有解冻入口，
+ * 于是「重载一次能用、重载两次就崩」——这种 bug 只有连着做两次才会露出来。
  */
 public final class ReloadTest {
 
@@ -45,6 +51,16 @@ public final class ReloadTest {
         "timetable.registerService('rl', 'line', 'L1', 'Line 1', 'rl:sys', '', 0)",
         "");
 
+    private static final String GOOD_ATO = String.join("\n",
+        "from ctd import ato",
+        "",
+        "class MiniAto:",
+        "    def decide(self, ctx):",
+        "        return ato.stop('reload test')",
+        "",
+        "ato.register('rl', 'mini', 'rl:sys', MiniAto())",
+        "");
+
     private static final String BROKEN = String.join("\n",
         "from ctd import signal",
         "",
@@ -60,15 +76,17 @@ public final class ReloadTest {
         Path root = Files.createTempDirectory("ctd-reload-test");
         Files.createDirectories(root.resolve("signal"));
         Files.createDirectories(root.resolve("timetable"));
+        Files.createDirectories(root.resolve("ato"));
         Files.writeString(root.resolve("signal/mini.py"), GOOD_SIGNAL);
         Files.writeString(root.resolve("timetable/line.py"), GOOD_SERVICE);
+        Files.writeString(root.resolve("ato/mini.py"), GOOD_ATO);
 
         ScriptReloader reloader = new ScriptReloader(root);
 
         // ① 首次加载
         var r1 = reloader.loadInitial();
         ScriptReloader.freezeAll();
-        failures += check("首次加载 2 个脚本全部成功", r1.failures().isEmpty() && r1.ok() == 2,
+        failures += check("首次加载 3 个脚本全部成功", r1.failures().isEmpty() && r1.ok() == 3,
             r1.summary());
         int systemCount = SignalRegistries.systems().size();
         int serviceCount = Service.services().size();
@@ -95,13 +113,20 @@ public final class ReloadTest {
         failures += check("制度仍在", SignalRegistries.systems().size() == systemCount,
             String.valueOf(SignalRegistries.systems().size()));
 
+        // ④ 再重载一次：ATO 注册表若没有解冻，这里会抛 "registry is frozen"
+        var r4 = reloader.reload();
+        failures += check("第二次重载仍成功（ATO 必须解冻）", r4.success(), r4.message());
+        failures += check("第二次重载后 ATO 仍在",
+            AtoEngines.get(ResourceLocation.fromNamespaceAndPath("rl", "mini")).isPresent(),
+            "frozen=" + AtoEngines.frozen());
+
         reloader.close();
         System.out.println();
         if (failures > 0) {
             System.out.println("重载验收失败: " + failures + " 项");
             System.exit(1);
         }
-        System.out.println("重载验收通过：全量重载可做，失败时整批回滚且重新冻结");
+        System.out.println("重载验收通过：全量重载可做，失败时整批回滚，重复重载不失效");
     }
 
     private static int check(String name, boolean ok, String detail) {

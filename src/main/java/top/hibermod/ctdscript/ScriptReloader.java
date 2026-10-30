@@ -126,6 +126,11 @@ public final class ScriptReloader {
         top.hibermod.ctdapi.signal.SignalRegistries.unfreeze();
         top.hibermod.ctdapi.device.Devices.unfreeze();
         top.hibermod.ctdapi.timetable.Service.unfreeze();
+
+        // ATO 与能源提供方也必须在列：漏掉任何一个，第一次重载能用、
+        // 第二次起脚本全部加载失败，而症状看起来像「脚本写错了」。
+        top.hibermod.ctdapi.ato.AtoEngines.unfreeze();
+        top.hibermod.ctdapi.interop.Interop.unfreeze();
     }
 
     public static void freezeAll() {
@@ -140,6 +145,8 @@ public final class ScriptReloader {
     public static String freezeState() {
         return "signal=" + top.hibermod.ctdapi.signal.SignalRegistries.isFrozen()
             + " device=" + top.hibermod.ctdapi.device.Devices.isFrozen()
-            + " service=" + top.hibermod.ctdapi.timetable.Service.isFrozen();
+            + " service=" + top.hibermod.ctdapi.timetable.Service.isFrozen()
+            + " ato=" + top.hibermod.ctdapi.ato.AtoEngines.frozen()
+            + " interop=" + top.hibermod.ctdapi.interop.Interop.frozen();
     }
 }

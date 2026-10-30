@@ -120,6 +120,8 @@ public final class PythonKernel implements DispatchKernel {
                 env.log("error", "ctd-script: kernel {} failed ({} consecutive, {} total){}: {}",
                     id, consecutiveFailures, totalFailures,
                     timeout ? " [timeout]" : "", t.getMessage());
+                // 需要完整栈时开 -Dctd.debugStack=1，平时只留一行摘要
+                if (System.getProperty("ctd.debugStack") != null) t.printStackTrace();
             }
 
             if (consecutiveFailures >= DISABLE_AFTER) {

@@ -357,7 +357,7 @@ L1 (标志进镜像) ──► L2 (区间限速) ──► L3 (脚本动作)
 | C | C8 存档持久化 | 🟡 | `KernelEnv.state()` 已接；`Restrictions`/`Emergency` 未验 |
 | C | C9 安全兜底 | ✅ | 连续失败禁用 + 注入自检 |
 | C | C10 ATO 接入主循环 | ✅ 本轮 | 宿主 `AtoPass` 在内核授权之后跑 `AtoEngine.decide()`，输出与内核限速取 `min`（只能收紧） |
-| B | B1–B7 重载与沙箱收敛 | 🟡 | kernel/ato 可重载；信号/设备注册不可回滚 |
+| B | B1–B4 全量重载 + 失败整批回滚 | ✅ 本轮 | 五个注册表全部纳入解冻/冻结；`reloadTest` 新增「连续重载两次」用例，覆盖 ATO 漏解冻的 bug |
 | D | Web 桥接 | 🟡 | `ctdweb` 有 `FrameCodec`/`RemoteKernel`/`TaskBroker` 骨架，未联调 |
 | F | 文档与实测 | 🟡 | `docs/22-test-checklist.md` 待人工过一遍 |
 

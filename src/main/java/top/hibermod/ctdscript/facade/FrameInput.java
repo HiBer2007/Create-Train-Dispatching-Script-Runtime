@@ -36,11 +36,17 @@ public final class FrameInput {
 
         // 信号机 → 它守护的边：脚本要据此判断「这段被占了吗」
         java.util.Map<java.util.UUID, String> edgeOfSignal = new java.util.HashMap<>();
-        for (top.hibermod.ctdapi.Topology.SignalSite site : ctx.topology().signals()) {
-            if (site.edge() != null) edgeOfSignal.put(site.id(), site.edge().encode());
+        // 防御：上下文里的任何一部分缺席都不该让整帧崩掉。
+        // 测试替身与未来可能的最小上下文都可能不带拓扑。
+        var topology = ctx.topology();
+        if (topology != null) {
+            for (top.hibermod.ctdapi.Topology.SignalSite site : topology.signals()) {
+                if (site.edge() != null) edgeOfSignal.put(site.id(), site.edge().encode());
+            }
         }
 
-        for (FrameContext.SignalState s : ctx.signalStates()) {
+        var signalStates = ctx.signalStates();
+        if (signalStates != null) for (FrameContext.SignalState s : signalStates) {
             signals.add(List.of(
                 s.signalId().toString(),
                 s.side().name(),
@@ -48,7 +54,8 @@ public final class FrameInput {
                 edgeOfSignal.getOrDefault(s.signalId(), "")));
         }
 
-        for (FrameContext.SwitchState s : ctx.switchStates()) {
+        var switchStates = ctx.switchStates();
+        if (switchStates != null) for (FrameContext.SwitchState s : switchStates) {
             switches.add(List.of(
                 s.node().encode(),
                 s.lockedBranch() == null ? "" : s.lockedBranch().encode(),
@@ -89,25 +96,8 @@ public final class FrameInput {
      */
     @HostAccess.Export
     public java.util.List<String> devices_of(String trainId) {
-        try {
-            java.util.UUID id = java.util.UUID.fromString(trainId);
-            var train = com.simibubi.create.Create.RAILWAYS.trains.get(id);
-            if (train == null || train.carriages.isEmpty()) return java.util.List.of();
-
-            java.util.List<String> found = new java.util.ArrayList<>();
-            for (var carriage : train.carriages) {
-                var entity = carriage.anyAvailableEntity();
-                if (entity == null) continue;
-                for (var kind : top.hibermod.ctdscript.content.TrainDevices.of(entity)) {
-                    if (!found.contains(kind.id())) found.add(kind.id());
-                }
-            }
-            return found;
-        } catch (Throwable t) {
-            return java.util.List.of();
-        }
+        return top.hibermod.ctdscript.facade.LiveQueries.devicesOf(trainId);
     }
-
     /**
      * 这架信号机服务于哪套信号制度；未登记返回空串。
      *
@@ -116,21 +106,8 @@ public final class FrameInput {
      */
     @HostAccess.Export
     public String system_of(String signalId) {
-        try {
-            java.util.UUID id = java.util.UUID.fromString(signalId);
-            for (var graph : com.simibubi.create.Create.RAILWAYS.trackNetworks.values()) {
-                var point = graph.getPoint(
-                    com.simibubi.create.content.trains.graph.EdgePointType.SIGNAL, id);
-                if (point != null) {
-                    return top.hibermod.ctdapi.signal.SignalSystemHolder.systemOf(point);
-                }
-            }
-            return "";
-        } catch (Throwable t) {
-            return "";
-        }
+        return top.hibermod.ctdscript.facade.LiveQueries.systemOf(signalId);
     }
-
     /** 某信号机某面的当前语义 id；未知返回空串。 */
     @HostAccess.Export
     public String aspect_of(String signalId, String side) {

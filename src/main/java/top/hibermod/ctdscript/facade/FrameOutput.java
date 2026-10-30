@@ -196,6 +196,7 @@ public final class FrameOutput {
             return top.hibermod.ctdapi.Command.RoutePriority.PASSENGER;
         }
     }
+    @HostAccess.Export
     public void unlock_switch(String node) {
         Rail.NodeId n = Rail.NodeId.tryDecode(node);
         if (n == null) {
