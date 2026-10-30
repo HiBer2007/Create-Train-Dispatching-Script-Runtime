@@ -149,6 +149,53 @@ public final class FrameOutput {
 
     /** 解除某个岔口的锁闭。 */
     @HostAccess.Export
+    /**
+     * 为某列车申请一条进路。
+     *
+     * <p>授权回答「还能走多远」，进路回答「走哪股」。没有进路时，
+     * 分叉口的走向只能由 Create 自己决定——两列车会各算各的。
+     *
+     * @param path 依次经过的边（逗号分隔的边 id）；空串表示撤销进路
+     */
+    public void route(String trainId, String destinationNode, String path,
+                      String priority, String reason) {
+        UUID id = requireId(trainId, "train id");
+        if (id == null) return;
+
+        java.util.List<Rail.EdgeId> edges = new java.util.ArrayList<>();
+        if (path != null && !path.isBlank()) {
+            for (String part : path.split(",")) {
+                try {
+                    edges.add(Rail.EdgeId.decode(part.trim()));
+                } catch (IllegalArgumentException ignored) {
+                    // 坏 id 跳过：一条错边不该让整条进路作废
+                }
+            }
+        }
+
+        Rail.NodeId dest = null;
+        if (destinationNode != null && !destinationNode.isBlank()) {
+            try {
+                dest = Rail.NodeId.decode(destinationNode.trim());
+            } catch (IllegalArgumentException ignored) {
+                dest = null;
+            }
+        }
+
+        top.hibermod.ctdapi.Command.RouteRequest request = new Command.RouteRequest(
+            dest, edges, parsePriority(priority), reason == null ? "" : reason);
+
+        frame.route(id, request);
+    }
+
+    private static top.hibermod.ctdapi.Command.RoutePriority parsePriority(String value) {
+        if (value == null) return top.hibermod.ctdapi.Command.RoutePriority.PASSENGER;
+        try {
+            return top.hibermod.ctdapi.Command.RoutePriority.valueOf(value.toUpperCase(java.util.Locale.ROOT));
+        } catch (Exception e) {
+            return top.hibermod.ctdapi.Command.RoutePriority.PASSENGER;
+        }
+    }
     public void unlock_switch(String node) {
         Rail.NodeId n = Rail.NodeId.tryDecode(node);
         if (n == null) {

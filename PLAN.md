@@ -348,7 +348,7 @@ L1 (标志进镜像) ──► L2 (区间限速) ──► L3 (脚本动作)
 | C | C2 `GlobalRailwayManager#tick` 注入 | ✅ | 启动自检 `MixinChecks`，缺注入直接拒绝启动 |
 | C | C3 拓扑镜像（含信号机） | ✅ | `/ctd host status` 显示 `nodes=28 edges=29 signals=2` |
 | C | C4 遥测：速度 / 位置 / **里程** / **车载制度** | ✅ 本轮 | `Odometers` 累计里程；`signalSystemsOf()` 从构造物读设备 |
-| C | C4b 遥测：计划路径 `route` | ❌ | 需要读 `Train.navigation` 的 `currentPath` |
+| C | C4b 遥测：进路状态 `route` | ✅ 本轮 | `out.route(车, 终点, 边序列, 优先级, 原因)` → `Command.RouteRequest` → `RouteApplier` 分配 id、算剩余长度与需锁岔口 → 回填 `TrainState.route` |
 | C | C4c 遥测：能源样本 `energy` | ❌ | `EnergyProvider` 无真实来源，恒 `unknown()`；ATO 的 `Context.energy` 因此也是未知 |
 | C | C5 指令执行（速度钳位） | ✅ | `TrainApplier` 取 min |
 | C | C6 信号写入 + 客户端显示 | 🟡 | 内核已写 `SignalStates`（`aspects=2`），灯色未人工确认 |
