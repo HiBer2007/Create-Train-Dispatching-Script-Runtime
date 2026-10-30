@@ -447,3 +447,34 @@ Create 每帧把 `speed` 清零——**正反向都一样**（实测 `dir=revers
 现在 `proceed(id, ma, cap, "reverse")` 会发 `REVERSE`，
 宿主把它翻译成**负的目标速度**（Create 用 speed 的符号决定推进方向）。
 `SpeedControl` 保留幅值钳位再补符号，因此倒车同样受最高速与授权约束。
+
+**F 阶段第五轮：脚本在游戏里把车开起来了（C 阶段验收达成）**
+
+复现步骤（三条命令）：
+
+```
+/ctd host debugtrack        # 给最大那张图接长 96 格
+/ctd reload                 # 让 hold_all / drive_probe 内核保持启用
+/ctd host status
+```
+
+实测序列（同一个世界，连续三条状态）：
+
+```
+train : 未命名列车 speed=0.350 target=0.350 ... blocked=false   ← 脚本正在开车
+train : 未命名列车 speed=0.007 target=0.350 ... blocked=true    ← 开到接长段的尽头
+train : 未命名列车 speed=0.007 target=0.350 ... blocked=true
+```
+
+- `speed` 爬到 **0.350**（内核 `out.proceed(id, 100, 0.35)` 给的上限），`blocked=false`：
+  **脚本 → 宿主 → 列车** 这条链路在真实服务端上完整成立。
+- 几秒后 `blocked=true`：车开到了新铺的 96 格尽头，Create 把它停住——这是正确行为，
+  也反过来证明车**确实位移了**。
+- 再跑一次 `/ctd host debugtrack` 就又能接长 96 格，可以反复演示。
+
+**本轮修掉的两个「看起来像调度坏了」的问题**
+
+| 问题 | 症状 | 修法 |
+|---|---|---|
+| `debugtrack` 只造 4 格 | 任何车都 `blocked`，速度永远 0.007 | 改成接长 24 段 × 4 格 = 96 格 |
+| 新图对已有列车没用 | 车还挂在旧图上，接长别处毫无帮助 | 改为**在最大那张图的端点接长** |
