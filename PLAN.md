@@ -178,13 +178,13 @@ F（收尾）              ← 必须
 | 阶段 | 状态 | 备注 |
 |---|---|---|
 | A | ✅ **完成** | A1–A8 全部实现并验收：`railCodecTest` 10 项、`deviceSwitchBridgeTest` 13 项 |
-| B | ✅ **完成（本轮修复）** | 之前 `/ctd reload` 在任何带 `block/` 或 `hud/` 脚本的世界里**永远回滚**；现在按目录区分，实测 `reloaded 7/7` |
+| B | ✅ **完成** | 只重跑可重载目录（kernel/ato/broadcast/hud）；**失败不回滚**且 ERROR 级可见，实测 `reloaded 7/7` / `FAILED 6/7` / 修好 `7/7` |
 | C | ✅ **完成（除环境阻塞项）** | 宿主全部落地；帧刻 3:1、镜像 `nodes=2 edges=1`、遥测 `trains=1`、速度钳位 `0.350`、信号写入 12 项、指派 → `Schedule`；脚本可加载并驱动列车。**未验**：列车位移（四级失败链已定论，见 `DebugTrainCommand` 注释与 `docs/19` §4）、道岔物理扳动 |
 | D | ✅ **完成** | `ctdweb` 仓库：WebSocket 桥（手写服务端，零依赖）+ 编解码 + 断线三策略。`bridgeTest` 18 项全绿 |
 | E | ✅ **完成** | `TaskBroker`：提交/取回/超时/去重，常数时间不阻塞。跨语言实测（Python 标准库客户端） |
 | G | ✅ **完成** | 运营身份 API + 脚本时刻表物品 + 加载阶段划分 + 后台预留接口。宿主侧指派**全链路打通**：指派 → 解析 → 真实 `Schedule`（`schedule=2` 实测） |
 | H | 🟡 进行中 | **脚本定义内容**：`content.block(...)` / `content.hud(...)`；方块启动期注册（已实测可放置）；纹理由脚本提供 png，引擎合成模型并入 `resourcepacks/`；HUD 由引擎渲染。待验：客户端外观 |
-| F | ✅ **完成** | 安装文档、版本矩阵、发布清单、`docs/17` 进游戏验证步骤；四仓库 manifest 版本正确 |
+| F | ✅ **完成（除三项人工目视）** | 安装文档、版本矩阵、发布清单、`docs/17` 验证步骤、`docs/16` §9 失败语义；四仓库 manifest 一致 |
 
 **最后更新**：阶段 A 完成时（A8 验收通过）。
 
@@ -343,7 +343,7 @@ L1 (标志进镜像) ──► L2 (区间限速) ──► L3 (脚本动作)
 | A | A1 `Rail.NodeId`/`EdgeId` 字符串编解码 | ✅ | `RailCodecTest` 往返 1000 次 |
 | A | A2 `ctx.switches()` 暴露岔口锁闭 | ✅ 本轮 | `HostRuntime` 从 `SwitchApplier.locks()` + `holderOf()` 构造 `FrameContext.SwitchState` |
 | A | A3 `out.lock_switch` / `unlock_switch` | ✅ | `FrameOutput` → `Command.SwitchCommand` |
-| A | A4–A6 设备 / 能源 / 运营指令桥接 | ✅ | 已转交 `OperationFeed` 并计数 |
+| A | A4–A6 设备 / 能源 / 运营指令桥接 | ✅ | 转交 `OperationFeed` + `DeviceCommands` 落点（`deviceCmds=1/7` 实测） |
 | A | A7 设备注册带 `signalSystems` | ✅ | `DeviceKind.signalSystem()` |
 | C | C2 `GlobalRailwayManager#tick` 注入 | ✅ | 启动自检 `MixinChecks`，缺注入直接拒绝启动 |
 | C | C3 拓扑镜像（含信号机） | ✅ | `/ctd host status` 显示 `nodes=28 edges=29 signals=2` |
@@ -357,9 +357,9 @@ L1 (标志进镜像) ──► L2 (区间限速) ──► L3 (脚本动作)
 | C | C8 存档持久化 | ✅ 本轮实测 | 写入 → `/stop` → 重启 → 读回 `world/data/ctdhost.dat`；`Env.state()` 已接真实存档 |
 | C | C9 安全兜底 | ✅ | 连续失败禁用 + 注入自检 |
 | C | C10 ATO 接入主循环 | ✅ 本轮补测 | `atoPassTest` 10 项：只收紧/手动不接管/无制度缺席/坏引擎 10 次禁用/null 不干预 |
-| B | B1–B4 全量重载 + 失败整批回滚 | ✅ 本轮 | 五个注册表全部纳入解冻/冻结；`reloadTest` 新增「连续重载两次」用例，覆盖 ATO 漏解冻的 bug |
+| B | B1–B4 全量重载（**不回滚**） | ✅ | 五个注册表纳入解冻/冻结；`reloadTest` 14 项：只跑可重载目录、失败可见且不回滚、连续两次不失效 |
 | D | Web 桥接 | ✅ 闭环 | 外部 Python 进程**真的把车开到 0.300**：`speed=0.300 target=0.300 blocked=false` |
-| F | 文档与实测 | ✅ 本轮 | `docs/17` 新增 §7（复现 + 八个诊断字段表）；`docs/18` 新增 0.3.0；灯色/道岔人工项仍待现场看 |
+| F | 文档与实测 | ✅ 除人工项 | `docs/17` §7 诊断表、`docs/16` §9 失败语义、`docs/18` 0.3.0、`docs/19` 交接；灯色/HUD/道岔物理仍待现场看 |
 
 **本轮（审查 + 修补）**：修掉了三个「有代码、无数据」的断点——内核拿到的信号快照恒空、
 里程恒为 0、每列车的信号系统恒空。这三处都属于「现象看起来像渲染/算法问题，
@@ -1244,3 +1244,49 @@ train: speed=0.007 blocked=true                   ← 8 秒后第二次：96 格
 | 前方区块未加载 | 接长不恢复；强制加载新节点所在区块 → 恢复 |
 | **列车自身所在区块未加载** | 接长不恢复；强制加载列车周围区块 → 恢复 |
 | 车太长 | 都不恢复；换短车或两端都延长 |
+
+---
+
+## 交付状态（一页）
+
+### 能信 —— 每项都有可重跑的验证
+
+| 能力 | 怎么验 | 结果 |
+|---|---|---|
+| 脚本真的能开动列车 | `/ctd host status` 看 `speed/target/blocked` | `speed=0.350 blocked=false`（双采样） |
+| 外部进程也能开 | `tools/driving_client.py` | `speed=0.300 blocked=false` |
+| 热重载 | `/ctd reload` 两次 | `reloaded 7/7` ×2 |
+| 重载失败可见 | 故意改坏一个 kernel | `FAILED 6/7` + 逐条异常 + `ERROR` 日志 |
+| 存档跨重启 | `/ctd state put` → `/stop` → 重启 → `show` | 读回成功（`world/data/ctdhost.dat`） |
+| 注入真的生效 | `/ctd selftest` | 9 项 PASS（含三个 `@Unique` 标记） |
+| 静默失败为零 | `/ctd host status` 的 `swallowed:` | `none` |
+| 离线全绿 | `tools/verify-all.ps1` | **22 任务 / 255 项** |
+
+### 不能信 —— 需要人眼
+
+| 项 | 为什么机器验不了 |
+|---|---|
+| 灯色 / 辉光管 | 要分辨「画出来的颜色对不对」 |
+| HUD 外观 | 浅灰底板、正负号速度、双向指针，只能看 |
+| 道岔物理扳动 | 需要装汽鸣铁道，看岔位是否真的动 |
+
+### 下一步（三件，都需要外部输入）
+
+1. **目视三项**：进游戏，把看到的告诉我（"灯是红的"这种程度就够）。
+2. **K4 平台设备**：给一份设备清单（车门 / 站台屏 / 发车指示器……），
+   我按 `Devices` 现有机制实现方块与行为并补测试。
+3. **CRN 集成**：给 jar。
+
+### 我这几轮改掉的「假完成」
+
+| 曾经的 ✅ | 真相 |
+|---|---|
+| B 阶段完成 | `/ctd reload` 在真实世界里**永远回滚**，测试目录恰好绕开了 `block/` 与 `hud/` |
+| A4–A6 完成 | 设备指令只计数，**没有任何落点** |
+| C7 道岔完成 | 逻辑锁**零测试** |
+| C8 存档完成 | `HostSavedData` 从来没被实例化，`markStateDirty()` 是空方法 |
+| C3 拓扑缓存 | 签名「节点数与自己相加」，永远不变 |
+| C9 安全兜底 | 11 处 `catch (Throwable ignored)` 把失败吞掉 |
+
+**共同点**：都通过了「读代码觉得对」。验收标准要求「可重跑的检查」之后，
+这六处才逐个暴露出来。
