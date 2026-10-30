@@ -478,3 +478,34 @@ train : 未命名列车 speed=0.007 target=0.350 ... blocked=true
 |---|---|---|
 | `debugtrack` 只造 4 格 | 任何车都 `blocked`，速度永远 0.007 | 改成接长 24 段 × 4 格 = 96 格 |
 | 新图对已有列车没用 | 车还挂在旧图上，接长别处毫无帮助 | 改为**在最大那张图的端点接长** |
+
+**F 阶段第六轮：注入自检写错了两次，第二次才对**
+
+想把「脚本能不能开车」的两处注入纳入启动自检，结果连踩两个坑：
+
+| 尝试 | 结果 | 原因 |
+|---|---|---|
+| 在 `FMLCommonSetupEvent` 里查 `Train` 的方法 | **误报「注入缺失」并拒绝启动** | 那时 `Train` 还没被加载，反射看到的是原生类 |
+| 改到 `ServerStartedEvent` 仍然报缺失 | 还是误报 | `@Inject` 的处理方法会被**内联进目标方法后丢弃**，反射永远看不到它 |
+
+正确做法：在每个 mixin 里加一个 `@Unique` 标记方法（`@Unique` 会被真正加进目标类），
+自检查这个标记。现在启动自检能真正区分「注入在」与「注入不在」：
+
+```
+required mixins are not applied -> Train#tick TAIL (...); Train#tickPassiveSlowdown (...)
+```
+
+这条错误信息在排查过程中真的触发过一次，证明了它是有用的，而不是装饰。
+
+**同时修掉的调试命令缺陷**：`debugtrack` 只接长一端。如果接在列车背后，
+车头照样顶着尽头（实测 `nodes` 从 52 涨到 76，`blocked` 仍为 true）。
+现在**两端都接长**，不用猜车朝哪边：
+
+```
+debug track: graph=... nodes=100 +48 node(s) (96 blocks)
+train : speed=0.350 target=0.350 blocked=false    ← 连续两次采样
+train : speed=0.007 target=0.350 blocked=true     ← 约 14 秒后到另一端
+```
+
+0.35 格/tick × 20 tick/s ≈ 7 格/s，96 格刚好跑 14 秒——数字对得上，
+说明这不是「原地抖」，是真位移。
