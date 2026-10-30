@@ -31,9 +31,9 @@
 | `ctdscript` P2 | ✅ | 脚本 ATO，同上 |
 | `ctdscript` P3 | 🟡 部分 | 设备类型 / 交路注册已通；**道岔锁闭、`DeviceCommand`、`EnergyCommand` 未接** |
 | `ctdscript` P4 | 🟡 部分 | watchdog + 连续失败禁用 + `/ctd reload`（仅 kernel/ato）已做；**信号/设备热重载未做** |
-| `ctdscript` P5 | ❌ | Web 桥接未开始 |
+| `ctdscript` P5 | 🟡 | `ctdweb` 有帧编解码 / 远端内核 / 任务队列骨架，未联调 |
 | `ctdscript` P6 | ❌ | 外部进程未开始 |
-| `ctd-host` | ❌ | **完全没有**。这是 D1/D2 的硬前提 |
+| `ctd-host` | ✅ 可用 | 注入 / 拓扑镜像 / 遥测 / 指令执行 / 信号写入 / 逻辑锁 / 进路 / ATO 均已接线；物理扳岔与能源样本未接 |
 
 ---
 
