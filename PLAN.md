@@ -509,3 +509,38 @@ train : speed=0.007 target=0.350 blocked=true     ← 约 14 秒后到另一端
 
 0.35 格/tick × 20 tick/s ≈ 7 格/s，96 格刚好跑 14 秒——数字对得上，
 说明这不是「原地抖」，是真位移。
+
+**F 阶段第七轮：0.3.0 真的对齐了**
+
+发布说明写了三轮 0.3.0，产物却一直叫 `0.1.0`。这一轮才真正对齐，并且发现：**只改版本号是不够的**。
+
+```
+gradle.properties:  ctdapi_jar = create-train-dispatching-api-0.1.0.jar   ← 按文件名钉死
+```
+
+只把 `mod_version` 改成 0.3.0，其余三个仓库仍然按旧文件名找 API，
+于是拿旧 API 编译、游戏里 `ctdapi` 依旧报 0.1.0——第一次尝试就是这个结果。
+
+四个仓库现在都：`mod_version=0.3.0` + `ctdapi_jar=create-train-dispatching-api-0.3.0.jar`。
+
+| 仓库 | 产物 | 大小 |
+|---|---|---|
+| ctdapi | `create-train-dispatching-api-0.3.0.jar` | 204 KB |
+| ctdhost | `create-train-dispatching-host-0.3.0.jar` | 135 KB |
+| ctdscript | `create-train-dispatching-script-runtime-0.3.0.jar` | 45.9 MB |
+| ctdweb | `create-train-dispatching-web-0.3.0.jar` | 55 KB |
+
+服务端实测：
+
+```
+Create Train Dispatching API 0.3.0 (ctdapi)
+Create Train Dispatching Script Runtime 0.3.0 (ctdscript)
+Create Train Dispatching Web Bridge 0.3.0 (ctdweb)
+[ctdscript] 9/9 scripts loaded
+Done (0.850s)!
+```
+
+`ctdhost` 在 `runServer` 下显示 `0.0NONE`——`${file.jarVersion}` 只在 jar 内可解析，打包产物是 0.3.0。
+
+**顺带修掉一个自伤的构建问题**：服务端日志原来写在 `build/` 里，导致 `gradlew clean` 报
+`Unable to delete directory 'build'`。日志已挪到 `run/`。
