@@ -422,3 +422,28 @@ kernel out.proceed(train, 2000, 0.5)
   （`[green] signals=3bbf72fe=ctd:clear,...,a9dcfa61=ctd:clear`）。
 - 结论：`C` 阶段的「脚本真实驱动列车」在**管线层面已成立**（指令→收敛→施加→目标速度落地），
   剩下的 0.007→0.35 需要一个**不在尽头**的轨道场景才能观测到。
+
+**F 阶段第四轮：为什么这个世界里永远开不动（已定因）**
+
+`/ctd host debugtrack` 造的是**一段 4 格的孤立轨道**：
+
+```java
+// DebugTrackCommand.java:53-56
+new TrackNodeLocation.DiscoveredLocation(level, base.x, base.y, base.z) ...
+new TrackNodeLocation.DiscoveredLocation(level, base.x + 4, base.y, base.z) ...
+graph.connectNodes(level, a, b, null);
+```
+
+4 格放不下任何真实列车，于是 `carriage.travel` 在两端都判定 `blocked`，
+Create 每帧把 `speed` 清零——**正反向都一样**（实测 `dir=reverse` 仍然 `blocked=true`）。
+
+这不是注入或脚本的问题：管线每一段都有日志证据。要看到 0.35 的车速，需要：
+
+1. 世界里有一段**足够长**的直轨（≥ 列车长度 + 几十格余量）；
+2. `/ctd host debugtrain create` 把车放上去；
+3. 内核 `out.proceed(id, 2000, 0.5)`，然后看 `speed` 爬到 0.5。
+
+**本轮同时补掉的功能缺口**：`Direction` 以前只有 `KEEP` 被用上，
+现在 `proceed(id, ma, cap, "reverse")` 会发 `REVERSE`，
+宿主把它翻译成**负的目标速度**（Create 用 speed 的符号决定推进方向）。
+`SpeedControl` 保留幅值钳位再补符号，因此倒车同样受最高速与授权约束。
