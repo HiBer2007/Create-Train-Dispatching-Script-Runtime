@@ -694,3 +694,37 @@ ctdweb   : bridgeTest taskBrokerTest controlTest
 ```
 
 本轮实测 **ctdweb 三项全绿**（`FAIL=0`）。
+
+**离线验收一次跑完：14 个任务 / 131 项检查**
+
+`tools/verify-all.ps1`：
+
+```
+repo       task                    ok   fail
+ctdapi     assignmentsTest          9    0
+ctdhost    signalApplierTest       12    0
+ctdscript  graalpySmokeTest         6    0
+ctdscript  signalBridgeTest         5    0
+ctdscript  railCodecTest           10    0
+ctdscript  deviceSwitchBridgeTest  13    0
+ctdscript  kernelAtoBridgeTest     11    0
+ctdscript  loadPhaseTest            3    0
+ctdscript  operationBridgeTest      6    0
+ctdscript  sandboxTest              6    0
+ctdscript  reloadTest              11    0
+ctdweb     bridgeTest              18    0
+ctdweb     taskBrokerTest          13    0
+ctdweb     controlTest              8    0
+
+合计: 131 项通过, 0 项失败
+```
+
+**核对过程中发现的两件事**
+
+1. `AssignmentsPublishTest` 在 **ctdapi** 仓库（`top.hibermod.ctdapi.tools`），
+   而文档一直把它写成 ctdscript 的测试。它一直有 gradle 任务（`assignmentsTest`），
+   只是**在另一个仓库里**——按文档去找会找不到。
+
+2. 三个从未跑过的任务（`loadPhaseTest` / `operationBridgeTest` / `sandboxTest`）
+   这次全跑了一遍，共 15 项，全绿。之前 PLAN 写着「沙箱六项全绿」，
+   但我自己从没在本轮跑过它——现在是真的跑过了。
