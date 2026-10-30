@@ -576,3 +576,40 @@ Env.markStateDirty() → data.putKernelState(...) + setDirty()
 ```
 
 内核 id 是真实参数（`Env(id)`），所以每个内核有自己的一份台账，互不覆盖。
+
+**L1 拓扑镜像：不再每帧重建，也不再漏掉「只加了一条边」**
+
+旧实现的「变没变」判断是坏的：
+
+```java
+edges += g.getNodes().size();     // 「连接数不好直接取，用节点集合算个上界估计即可」
+if (nodes == lastNodeCount && edges == lastEdgeCount) return view;
+```
+
+`edges` 就是节点数，所以整段等价于**只比较节点数**。后果：
+把两段轨接上（只加一条边）、或加装一架信号机——都不触发重建，
+内核看到的是过期拓扑，而且没有任何提示。
+
+现在的判断：
+
+| 项 | 说明 |
+|---|---|
+| 图 id 哈希 | 换图能发现 |
+| 节点数 | 加减节点 |
+| **连接数** | 只加一条边也能发现 |
+| **信号机数** | 加装信号机也能发现 |
+| 检查频率 | 每 10 刻一次（0.5 秒），不是每帧 |
+
+实测（100 节点）：
+
+```
+t0  topology : nodes=100 edges=101 rebuilds=1  lastMs=12
+t0+20s（+1200 刻）
+    topology : nodes=100 edges=101 rebuilds=1  lastMs=12      ← 稳态零重建
+跑 /ctd host debugtrack（nodes 100 → 148）
+t+3s
+    topology : nodes=148 edges=149 rebuilds=2  lastMs=2       ← 变更被检测到
+```
+
+结论：稳态开销从「每帧 O(节点)」降到「每 10 帧 O(节点)」，且正确性比原来更严——
+原来漏掉的边/信号机变更现在都能发现。
