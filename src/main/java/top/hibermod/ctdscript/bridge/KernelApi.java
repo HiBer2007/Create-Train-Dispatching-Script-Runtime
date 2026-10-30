@@ -80,7 +80,9 @@ public final class KernelApi {
         for (ResourceLocation id : registered) {
             try {
                 DispatchKernels.remove(id);
-            } catch (Throwable ignored) {
+            } catch (Throwable t) {
+                // 注销失败不该挡住重载，但不能静默
+                top.hibermod.ctdapi.diagnostics.Failures.caught("Bridge 撤销内核", t);
                 // 注销失败不该挡住重载
             }
         }

@@ -121,7 +121,9 @@ public final class AtoApi {
         for (ResourceLocation id : registered) {
             try {
                 AtoEngines.remove(id);
-            } catch (Throwable ignored) {
+            } catch (Throwable t) {
+                // 注销失败不该挡住重载，但不能静默
+                top.hibermod.ctdapi.diagnostics.Failures.caught("Bridge 撤销 ATO", t);
                 // 注销失败不该挡住重载
             }
         }

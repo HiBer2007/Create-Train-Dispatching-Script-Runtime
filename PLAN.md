@@ -1164,3 +1164,33 @@ reloaded 7/7 scripts loaded                      ← 修好（不需要重启）
   以后一旦有记录就一定是真问题。
 
 离线验收现在 **22 个任务 / 255 项检查**。
+
+**失败登记搬到 API 层：宿主与脚本共用一张表**
+
+上一轮把宿主侧 11 处静默 `catch` 接到 `Failures`，但那张表在 `ctdhost` 里——
+脚本运行时是**另一个模组**，写不进去。于是「哪里在悄悄失败」要看两个地方，
+等于没有统一视图。
+
+现在登记表在 `ctdapi.diagnostics.Failures`：
+
+| 写入方 | 位置 |
+|---|---|
+| 宿主 | `ctdhost.Failures`（同名的薄转发，无独立状态）→ API 层 |
+| 脚本运行时 | `PythonKernel` 的 onDetach、`KernelApi` / `AtoApi` 的撤销失败 → API 层 |
+| 读取方 | `/ctd host status` 的 `swallowed:` 行 |
+
+语义不变：**第一次失败 ERROR 带栈，之后每 100 次一条 WARN，计数永久保留**。
+
+实测（真服务端）：
+
+```
+selftest    : 全部通过
+swallowed   : none
+/ctd reload : reloaded 7/7 scripts loaded
+swallowed   : none        ← 重载成功也不会往表里写垃圾
+```
+
+「干净时必须是干净的」这一点被特意验证：如果 `swallowed` 平时就非空，
+这个字段很快就会被人忽略——那样它又变回了一个装饰。
+
+离线验收 **22 个任务 / 255 项检查**。
