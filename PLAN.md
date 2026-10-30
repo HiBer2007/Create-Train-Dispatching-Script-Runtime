@@ -1315,3 +1315,31 @@ train: speed=0.007 blocked=true                   ← 8 秒后第二次：96 格
 
 仍未验：CRN 的仪表盘外观、以及「CRN 的线路规划与我们的调度器同时工作时谁让步」——
 都需要图形客户端。
+
+**CRN 共存做成可重跑的检查**
+
+「装上去试了试能用」不是验收——它只是运气好的一次观察。
+所以把这次验证固化成 `tools/check-crn-coexistence.ps1`（十项，退出码即结论）：
+
+| 组 | 检查 |
+|---|---|
+| jar | CRN / DragonLib 在 `run/mods` |
+| 加载 | 日志里有两者的版本行 |
+| 注入 | 日志里有 `createrailwaysnavigator.mixins.json` 的应用记录 |
+| 冲突 | 日志里**没有** `Mixin apply failed` / `Critical injection failure` |
+| 存活 | `selftest` 9/9、拓扑非空、内核 >0、`swallowed: none` |
+
+实测输出：
+
+```
+PASS  CRN jar 在位          PASS  CRN 被加载           PASS  没有 mixin 冲突
+PASS  DragonLib jar 在位    PASS  DragonLib 被加载     PASS  selftest 九项全过
+PASS  CRN 的 mixin 真的注入  PASS  拓扑镜像非空         PASS  内核已注册
+PASS  无静默失败
+```
+
+**这个脚本的模板价值大于它本身**：以后装汽鸣铁道、Electro Energetics 都可以照抄，
+把「装个新模组试试」从人肉翻日志变成一条命令。
+
+顺带更正一个说法：上一轮我写「CRN 集成已实测共存」，那只是**一次**观察；
+现在它才是可重跑的。
