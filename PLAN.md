@@ -782,6 +782,20 @@ ctdweb     controlTest              8    0
 - 「某次手工看过，当时是好的」
 - 日志里一句 `loaded` / `ok`，但没有可判断的数值
 
+### 写世界的命令：撤销必须先于写被验证
+
+> 2026-10-30 的事故买的教训，见本文件「事故记录：一条调试命令把世界写坏了」。
+
+| 规则 | 理由 |
+|---|---|
+| 任何会改变世界的命令，**同一次提交里必须带撤销命令** | `schedule fake` 写了非法时刻表，没有撤销，世界起不来 |
+| **撤销要先被验证**，再验证写 | 写完之后才发现「怎么撤」没想过，代价是删档 |
+| 命令的帮助文本写明「会不会改世界」 | 目前会改的只有 `debugtrack` / `debugtrain` / `debugstation` / `schedule clear` |
+| 只读命令禁止偷偷写 | `status` / `schedule` / `selftest` 必须是纯读 |
+
+**这一条与「不回滚」是同一条原则的两面**：能自动恢复的错误会被忽略，
+所以既要不自动恢复，也要**在动手之前**准备好明确的手动恢复手段。
+
 ### 已知被这条标准抓出的问题
 
 | 项 | 当时标的 | 实际 |
@@ -1368,3 +1382,75 @@ pwsh ... -JarPatterns no-such-mod -SkipInGame
 ```
 
 日志自动取 `run/server-*.log` 里最新的一份，所以换日志不用改参数。
+
+## 事故记录：一条调试命令把世界写坏了
+
+这不是「顺便记一笔」，是**本仓库至今最贵的一次教训**。原文如下。
+
+### 发生了什么
+
+为了验证 `/ctd host schedule` 的「有条目」打印路径，我写了 `schedule fake`：
+构造两条 `DestinationInstruction` 的时刻表，调 `runtime.setSchedule(...)` **写进真列车**。
+输出看起来完全正常：
+
+```
+已给列车排入 2 条假班次（CTD-TEST-A/B）
+```
+
+然后服务端在几秒后倒下：
+
+```
+java.lang.Error: ServerHangWatchdog detected that a single server tick took 180000000.00 seconds
+```
+
+再启动，仍然倒。换掉 CRN 也不行。真正的栈在 crash report 里：
+
+```
+java.lang.IndexOutOfBoundsException: Index 0 out of bounds for length 0
+  at com.simibubi.create.content.trains.schedule.ScheduleRuntime.estimateStayDuration(...:339)
+  at ScheduleRuntime.submitPredictions(...:246)
+  at GlobalTrainDisplayData.refresh(...:28)
+  at GlobalRailwayManager.tick(...:215)
+```
+
+`estimateStayDuration` 对 `cyclic=true` 且 `entries` 为空的时刻表会走
+`if (!cyclic) return INVALID; index = 0;` 然后 `entries.get(0)` —— **越界，每个 tick 都抛**。
+时刻表已经写进存档，于是世界永久起不来。
+
+### 三个独立的错误，串在一起
+
+| # | 错误 | 后果 |
+|---|---|---|
+| 1 | 调试命令**写世界**（`setSchedule`） | 假数据进入存档 |
+| 2 | 假数据**结构非法**（`List.of(List.of())` = 含一个空条件组） | Create 后续处理时越界 |
+| 3 | 那条命令**没有撤销子命令** | 出事后只能靠抢在崩溃前敲命令 |
+
+第 3 条最致命：我写完之后才发现「怎么撤销」这个问题**没想过**。
+
+### 怎么修好的
+
+1. `fake` 改成**纯内存合成**：造一份 `Schedule` 交给同一个打印函数，不碰列车、不进寻路。
+2. 条件改成 `List.of()`（没有条件组），不再产生非法结构。
+3. 补 `schedule clear`：把所有列车的时刻表清空——但它是为「从损坏存档里恢复」准备的，
+   实测在崩溃窗口内只能抢到 `cleared schedule on 0 train(s)`（列车还没加载），
+   **救不回来**。
+4. 最终只能把 `run/world` 改名为 `world-broken-20261030` 换新世界——开发世界没有
+   不可重建的东西，但这条路径在生产环境里就是「删档」。
+
+### 固化成规矩
+
+写进了 `PLAN.md` 的验收标准里，作为独立一条：
+
+> **任何会写世界的命令，必须在同一次提交里带上撤销命令，且撤销要先被验证。**
+> 只读命令（`status` / `schedule` / `selftest`）不受此限，但也不能偷偷写。
+
+配套判据：命令的帮助文本要写清「这条命令会不会改世界」。本仓库现有命令里
+只有 `debugtrack` / `debugtrain` / `debugstation` / `schedule clear` 会改，
+其余都是只读。
+
+### 顺带纠正一个此前的结论
+
+上一轮我写「CRN 已实测共存」。事故当时 CRN 也在，我一度怀疑是它；
+控制实验（拿掉 CRN 仍崩）和 crash report 的栈证明**与 CRN 无关**。
+这正是「一次观察」与「可重跑验证」的差别——`check-mod-coexistence.ps1` 那种脚本
+能排除的是「装没装上、注没注入」，排不了「谁的逻辑写坏了存档」。
