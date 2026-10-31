@@ -2299,3 +2299,50 @@ A4–A6 之前的成果是 `deviceCmds=1/7`——一台设备、七条指令。
 
 `run-acceptance.ps1` 加了「岔口锁可查询」（只查命令活着，不查有锁分支）。
 现 17 项（含驱动 19 项）。
+
+**造出岔口，「有锁时」那一支终于验到了；顺手补上撤销**
+
+上一轮我说 `/ctd host switches` 的「有锁时」分支未实测——因为测试轨道是直线，没有岔口。
+这一轮把它补齐，过程中踩到三个真问题。
+
+### 1. 新增 `debugjunction`
+
+从离列车最近的叶子往回退 6 个节点当岔心，朝 60° 方向铺 10 个节点，
+岔心度数从 2 变 3，成为真正的岔口。同时打印**内核要用的两个 id**：
+
+```
+Rail.NodeId        = minecraft:overworld@1092,-120,7,0
+Rail.EdgeId(branch)= minecraft:overworld@1092,-120,7,0|minecraft:overworld@1088,-120,0,0
+```
+
+只打坐标是不够的——脚本拿不到坐标，只能拿 id。
+
+### 2. 三个发现
+
+| 发现 | 表现 | 处理 |
+|---|---|---|
+| `lock_switch` 要 3 个参数 | 我只写了 2 个，内核每帧抛 `TypeError: Arity error - expected: 3` | 补 holder 参数。**这次错误是可见的**（日志 + 计数器 63 次），不是静默 |
+| 空股道 id 会被丢弃 | `lock_switch(node, "")` → `EdgeId.tryDecode("")` 为 null，命令被丢 | 用真实 EdgeId。丢弃时只 warn 一次——这一层可以更响，但至少不是无声 |
+| 列表用了 record 默认 toString | 打出 `NodeId[dimension=ResourceKey[...]...]` 一大串，读不下去 | 改 `encode()`，输出变成一行 |
+
+### 3. 补撤销：`/ctd host switches clear`
+
+锁是内核写的，而内核会崩、会被禁用。没有撤销的话，崩掉的内核会在岔口上留下
+**永久锁**，别的内核再也拿不到它——现象是「这条进路永远排不出来」。
+
+实测（造锁 → 停用探针 → 锁仍在 → 清）：
+
+```
+被锁住的岔口：1 个
+  node=minecraft:overworld@1092,-120,7,0  ->  minecraft:overworld@1092,-120,0,0  holder=1
+/ctd host switches clear  ->  已清除 1 个逻辑锁
+当前没有被锁住的岔口（switches: logical=0）
+```
+
+这是「**写世界的动作必须自带撤销**」的第二例（第一例是时刻表）。
+
+### 4. 仍然没做的
+
+- 锁**不会自动过期**（时刻表那套 TTL 没有搬过来）。内核崩掉留下的锁要靠人
+  `switches clear`。这是有意的保守：自动放行一条进路比留一个锁更危险。
+- （这一段被下一轮修正，见后文：`debugjunction` 后来又被加了 `-Check` 式的注意事项）
