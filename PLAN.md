@@ -3327,3 +3327,26 @@ PASS  指示器可查询        /ctd host indicator 必须给出「应显示=…
 世界里只剩「取数」，规则本身在离线测试里被钉死。
 
 `k4DoorTest` 30 → **38 项**；离线 **339 → 347 项**。
+
+### 站台屏幕：把「怎么做」写成照源码核对过的施工图
+
+这一项要客户端渲染，本环境无法验证，所以**不写代码**——写了也只是编译通过，
+按标准不算完成。取而代之的是 `docs/23-crn-platform-screens.md`：
+
+| 内容 | 依据 |
+|---|---|
+| 注册入口 `AdvancedDisplaysRegistry.register(...)` 的完整签名 | `client/AdvancedDisplaysRegistry.java` |
+| `DisplayProperties` 的两个字段 | 同上 |
+| `IDisplaySettings` 要实现的四个方法 | `block/display/properties/IDisplaySettings.java` |
+| 渲染基类与两个参考实现 | `AbstractAdvancedDisplayRenderer` / `BERStaticText` / `BERPlatformSimple` |
+| 颜色用 `DLColor`（辉光管做不到的那部分） | `AbstractAdvancedDisplayRenderer` 的常量 |
+
+文档里每个类型我都回头核对过存在性（七项全中）。
+
+**五步施工顺序**，每步都能单独验证：只注册 → 空渲染 → 接数据 → 加颜色 → 设置界面。
+最后一步是纯 UI，放最后做，因为它不影响前四步的正确性。
+
+### 一条判断
+
+「写不出来就写清楚」也是一种交付。**没有验证条件的代码是负债**——
+它看起来完成了，实际把「不确定」藏进了「已实现」。
