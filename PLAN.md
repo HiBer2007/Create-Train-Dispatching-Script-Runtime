@@ -1484,3 +1484,65 @@ CTD selftest — 全部通过
 ```
 
 离线验收 **23 个任务 / 265 项检查**。
+
+**世界救回来了：兜底注入 + 一条把自己写坏的撤销命令**
+
+上一轮我弃用了 `world-broken-20261030`。里面有一件**无法重建**的东西：
+一列真正组装好的列车（`debugtrain` 只能造静态观测车，六级失败链写在源码注释里）。
+所以这一轮不是「重来」，而是**把它救回来**。
+
+### 第一步：让损坏的时刻表不能弄垮服务端
+
+新增 `ScheduleRuntimeGuardMixin`（已按 R5 登记为 `docs/03` 的 T-8）：
+
+```java
+@Inject(method = "estimateStayDuration", at = @At("HEAD"), cancellable = true, require = 1)
+// cyclic=true 且 entries 为空 → 返回 INVALID(-2)，并按 Failures 记 ERROR（首次必报）
+```
+
+它不是静默修复：每次拦下都计数，`/ctd host status` 的 `swallowed:` 会一直显示
+`ScheduleRuntime#estimateStayDuration（cyclic 但无条目）=N`，
+`/ctd selftest` 的「时刻表健康」一直是红的，直到有人真正修好数据。
+
+### 第二步：撤销命令自己也写坏了两次
+
+**第一次**：`if (current.entries.isEmpty()) continue;` —— 损坏状态恰恰是「空条目」，
+于是最该修的那一份被跳过，命令还回 `cleared 0 train(s)`。
+
+**第二次**（更隐蔽）：
+
+```java
+train.runtime.setSchedule(new Schedule(), false);
+```
+
+`new Schedule()` 的默认值是 `(entries=[], cyclic=true, savedProgress=0)`
+——**就是损坏状态本身**。于是「修复」把一份损坏时刻表换成了另一份一模一样的，
+还回 `cleared 1 train(s)`，重启后照样红。
+
+正确写法：`new Schedule(new ArrayList<>(), false, 0)`。
+
+### 结果（跨重启验证）
+
+```
+修复前: swallowed: {ScheduleRuntime#estimateStayDuration（cyclic 但无条目）=5}
+        selftest: FAIL 时刻表健康
+clear : cleared schedule on 1 train(s)      ← 换成了 cyclic=false
+重启后: swallowed: none
+        selftest: 全部通过 / PASS 时刻表健康
+```
+
+世界保留了下来（`nodes=292`），列车还在，接长后照样能开：
+
+```
+debug track: nodes=340 +48 (96 blocks)
+train: speed=0.350 target=0.350 blocked=false    ← 真车，真跑
+train: speed=0.007 blocked=true                  ← 96 格跑完
+```
+
+### 这一轮买到的两句话
+
+1. **兜底必须同时「保证能起来」和「保证问题可见」**——只有前者就是掩盖，只有后者就是删档。
+2. **修复命令要用「目标状态」构造，不要用默认构造**：`new Schedule()` 的默认值
+   恰好是坏的那一种，这说明「默认值」这个概念在故障恢复里是危险品。
+
+离线验收 **23 个任务 / 265 项检查**；游戏内 `selftest` 10 项。
