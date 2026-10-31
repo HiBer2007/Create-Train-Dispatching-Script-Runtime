@@ -2670,3 +2670,47 @@ FAILED 7/8 scripts loaded
 
 **先看清单再下结论。** 为此新增 `/ctd host kernels`——它现在是这类问题的第一站：
 一行一个 id，比一个数字有用得多。
+
+**沙箱的真机证据：拒绝的方式和我想的不一样**
+
+「沙箱收敛」之前只有离线 `sandboxTest` 6 项。这一轮在真服务端上试了两件事，
+结果**两种拒绝方式完全不同**：
+
+| 尝试 | 实际结果 |
+|---|---|
+| `import os` | **成功**（模块可以导入） |
+| `os.getcwd()` | `java.lang.SecurityException: Operation is not allowed` |
+| `import socket` | `ModuleNotFoundError: No module named 'socket'` |
+| `while True: x += 1` | `timeout (script exceeded 15000ms)`，服务端存活 |
+
+我第一次的写法是「脚本无法导入 os」，断言 `PermissionError`——**错了**。
+`import os` 是允许的，被拒的是**调用**。断言和行为对不上时，先怀疑断言。
+
+这三条现在都在 `run-acceptance.ps1 -IncludeFailurePath` 里：
+
+```
+PASS  文件系统操作被拒绝
+PASS  socket 模块不存在
+PASS  死循环被 15s 超时掐断
+PASS  掐断后服务端仍在
+```
+
+### 顺手修掉一个「看起来卡死」
+
+脚本超时是 **15s**，而 `rcon.ps1` 的读超时是 **5s**。于是死循环脚本会让
+`/ctd reload` 在客户端直接超时——服务端 15 秒后明明给了 `timeout` 结果，**但没人接收**。
+
+把读超时改成 20s（15s + 余量）后，同样的实验得到：
+
+```
+FAILED 4/8 scripts loaded
+- kernel/spin2.py — timeout (script exceeded 15000ms)    耗时 16.3s
+```
+
+**客户端的超时必须比它等的服务端操作长**，否则「等待」会被误判成「卡死」。
+
+### 一个意料之外但正确的细节
+
+超时之后 `FAILED 4/8`——排在 `spin2.py` 后面的脚本没被加载。
+这是「不回滚」语义的直接后果：**部分加载就是部分加载**，脚本报错说清了是哪一条。
+下一次 `/ctd reload`（文件删掉后）恢复 `7/7`，`probe:spin2` 也随之消失。
