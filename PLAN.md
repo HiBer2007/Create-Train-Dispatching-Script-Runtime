@@ -18,12 +18,14 @@
 
 | 项 | 值 | 命令 |
 |---|---|---|
-| 离线验收 | **23 个任务 / 265 项，全绿** | `pwsh -NoProfile -File tools/verify-all.ps1` |
-| 游戏内自检 | **11 项全过** | `/ctd selftest` |
+| 离线验收 | **24 个任务 / 286 项，全绿** | `pwsh -NoProfile -File tools/verify-all.ps1` |
+| 游戏内自检 | **12 项全过** | `/ctd selftest` |
 | 真车驱动 | `speed=0.350 blocked=false` | `/ctd host status` |
 | 外部进程驱动 | `speed=0.300 blocked=false` | `ctdweb/tools/driving_client.py` |
 | 模组共存 | 十项全过 | `tools/check-mod-coexistence.ps1 -JarPatterns <名字>` |
 | 静默失败 | `swallowed: none` | `/ctd host status` |
+| 服务端侧验收 | **15 项**（含驱动 17 项） | `tools/run-acceptance.ps1 [-IncludeDriving]` |
+| 灯色写入 | 持久 + 红灯不放宽 | `/ctd host aspects` 显示 `takeover=true` |
 
 ### 仍需外部输入
 
@@ -2048,3 +2050,40 @@ run-acceptance.ps1 -IncludeDriving 17 项（含真车开动）
 ```
 
 两者现在都全绿。
+
+**文档一致性扫描：把「12 项」和项名对齐**
+
+自检项改名（`拓扑缓存生效` → `拓扑缓存可观测`）并新增两项之后，
+文档里散着一批旧说法。逐条改掉，并且**用交叉核对确认，而不是读一遍**：
+
+```
+文档 README.md              : 12 项 / 实际 12 项   完全一致 ✓
+文档 17-ingame-verification : 12 项 / 实际 12 项   无遗漏、无多余 ✓
+```
+
+改掉的地方：
+
+| 位置 | 旧 | 新 |
+|---|---|---|
+| `docs/17` | `PASS 拓扑缓存生效`、九项 | 改名 + 补 3 项（灯色接管 / 时刻表兜底 / 时刻表健康） |
+| `release/README.md` | `拓扑缓存生效`、`自检 11 项` | 改名 + 12 项 |
+| `docs/16` | 三处「九项」、一处「11 项」 | 十二项 / 12 项 |
+| `docs/19` | 「11 项 PASS（四个 `@Unique`）」 | 12 项（五个 `@Unique`，含灯色接管） |
+| `docs/19` | 离线 23 任务 / 265 项 | 24 / 286 |
+| `docs/04` | 「十项全过才退出码 0」 | 「全过才退出码 0」（共存检查项数会变，别写死） |
+
+最后一条是同一个坑的第三次出现：**把会变的数量写进文档**。
+`check-mod-coexistence` 的项数、`selftest` 的项数都改过两轮了。
+
+### 交叉核对的方式
+
+不是「读一遍觉得对」，而是把文档里的项名抽出来，和 `/ctd selftest` 的真实输出做集合比较：
+
+```powershell
+$actual   = (rcon '/ctd selftest') | 抽出 PASS 项名
+$docItems = (Get-Content 文档)    | 抽出 PASS 行
+差集为空才算一致
+```
+
+**文档写了但实际没有**是假承诺；**实际有但文档没写**是遗漏。
+两个方向都要查——这次 `docs/17` 就是后者（少写 3 项）。
