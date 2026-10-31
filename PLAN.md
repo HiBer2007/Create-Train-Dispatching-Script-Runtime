@@ -3369,3 +3369,35 @@ PASS  指示器可查询        /ctd host indicator 必须给出「应显示=…
 
 **彩排的价值在于顺序**：① 要停服、③ 会自己重启服务端、⑥ 必须人做。
 这三条以前是「我知道」，现在是「文档写着」。
+
+### 版本升到 0.4.0（K4 是一次功能发布）
+
+0.3.0 之后加了：车门接管、信号模式的门、发车指示器、`out.board`、拓扑四集合、
+`ctx.junctions()/section_count()`、门许可存档。这些是一次**功能发布**，不是补丁。
+
+| 改动 | 位置 |
+|---|---|
+| `mod_version=0.4.0` | 四个仓库的 `gradle.properties` |
+| `ctdapi_jar=…-0.4.0.jar` | 三个下游仓库的 `gradle.properties` |
+| `$version = '0.4.0'` | `tools/release.ps1` |
+| `release/0.4.0/` | 新目录（含 README 与 `verify-release.ps1`） |
+
+**jar 形态实测**：
+
+```
+Create Train Dispatching API 0.4.0 (ctdapi)
+Create Train Dispatching Host 0.4.0 (ctdhost)
+Create Train Dispatching Script Runtime 0.4.0 (ctdscript)
+Create Train Dispatching Web Bridge 0.4.0 (ctdweb)
+/ctd selftest   19 项全过
+run-acceptance  22 项 PASS
+```
+
+### 一个只在开发环境出现的假象
+
+开发服务器（`mods { ctdhost { sourceSet sourceSets.main } }`）里，
+ctdhost 的版本显示成 **`0.0NONE`**——因为 `${file.jarVersion}` 取自 jar 的
+`Implementation-Version`，而源码集运行没有 jar。
+
+jar 里这个值是**对的**（`Implementation-Version: 0.4.0`），所以玩家装包看到的是 0.4.0。
+**别被开发环境的 0.0NONE 骗去改代码**——那是运行形态的差异，不是缺陷。
