@@ -3040,3 +3040,32 @@ ctd:station_platform  124cd422-…  (还没收到过指令)
 ```
 
 这类数字每加一条检查就会变，所以**写之前先跑一遍数一遍**。
+
+**四类拓扑对脚本全部可见了**
+
+之前脚本只能看到 `trains()` / `signals()` / `devices_of()`；
+车站、设备、岔口、区段都在 Java 侧，脚本摸不到。这一轮补齐：
+
+| 方法 | 内容 |
+|---|---|
+| `ctx.stations()` | 每行 `[id, name, edge, position, assembling]` |
+| `ctx.devices()` | 每行 `[id, typeId, edge, position, operational]` |
+| `ctx.junctions()` | 每行 `[node, branchCount, locked]` |
+| `ctx.section_count()` | 区段数量（只给数量，理由见下） |
+
+内核实测：
+
+```
+[topo] junctions=5 sections=917 stations=3 devices=3
+[topo] junction minecraft:overworld@-235,-120,-162,0 branches=3 locked=false
+```
+
+### 两个命名/设计上的判断
+
+1. **`switches()` 这个名字已经被占了**——它返回的是「当前锁定的股道」（来自 `switchStates()`）。
+   拓扑里的岔口是另一件事，所以叫 `junctions()`。**两个概念共用一个名字会让调用方必然用错**，
+   而错误的表现是「读到了锁，却没读到岔口」，很难查。
+
+2. **区段只给 `section_count()`，不给列表**。当前口径是「一条边一个区段」，
+   一个中等世界就 917 条；每帧把它们全转成 Python 列表是纯浪费。
+   需要具体区段时走 Java 侧接口——**热路径上不要为了对称而付不必要的代价**。

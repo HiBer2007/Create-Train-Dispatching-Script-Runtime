@@ -142,6 +142,39 @@ public final class FrameInput {
     }
 
     /**
+     * 岔口：每行 {@code [node, branchCount, locked]}。
+     *
+     * <p>Create 没有道岔实体，岔口就是「度数 ≥3 的节点」；股道列表可能很长，
+     * 所以这里只给数量，需要具体股道时用 {@code ctx.topology()} 的 Java 侧接口。
+     */
+    @HostAccess.Export
+    public List<List<String>> junctions() {
+        List<List<String>> out = new java.util.ArrayList<>();
+        var topo = ctx.topology();
+        if (topo == null) return out;
+
+        for (var sw : topo.switches()) {
+            out.add(List.of(
+                sw.node().encode(),
+                String.valueOf(sw.branches().size()),
+                String.valueOf(sw.locked())));
+        }
+        return out;
+    }
+
+    /**
+     * 区段数量。
+     *
+     * <p>只给数量不给列表：当前口径是「一条边一个区段」，一个中等世界就有几百条，
+     * 每帧把它们全转成 Python 列表不划算。要具体区段请走 Java 侧接口。
+     */
+    @HostAccess.Export
+    public int section_count() {
+        var topo = ctx.topology();
+        return topo == null ? 0 : topo.sections().size();
+    }
+
+    /**
      * 这架信号机服务于哪套信号制度；未登记返回空串。
      *
      * <p>数据存在信号机自己身上（宿主 mixin 提供的 {@code SignalSystemHolder}），
