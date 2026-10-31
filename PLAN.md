@@ -405,14 +405,14 @@ L1 (标志进镜像) ──► L2 (区间限速) ──► L3 (脚本动作)
 | C | C3 拓扑镜像（含信号机） | ✅ | `/ctd host status` 显示 `nodes=676 edges=677 signals=2`（数值随铺轨变化）；`aspects` 每条边界只打印一次 |
 | C | C3b 车站 / 地面设备 / 岔口 / 区段进拓扑 | ✅ | `/ctd selftest` 的「车站已收录」「岔口已收录」「区段已收录」+ `run-acceptance.ps1` 的「车站与设备可见」 |
 | C | C3c 脚本可见 `ctx.stations()` / `ctx.devices()` | ✅ | 内核实测输出 `[sites] stations=3 devices=3`；`/ctd host devices` 列出设备与指令对照 |
-| C | K4 平台设备（车门 / 站台屏 / 发车指示器） | 🟡 地基完成、行为待清单 | 地基：设备进拓扑、脚本寻址、指令下发、落点查询、自检五项齐备。**每类设备的方块与语义未实现——需要设备清单** |
+| C | K4 车门接管 + 发车指示器 | ✅ | 车门：`/ctd host doors` 计数 + 红石/手动被拦 + 显式开关实测；指示器：`/ctd host indicator` 读回 `+0:06`；离线 `k4DoorTest` 30 项 |
 | C | C4 遥测：速度 / 位置 / **里程** / **车载制度** | ✅ | `routeOdometerTest` 6 项：有符号累加、多车独立、prune 清理 |
 | C | C4b 遥测：进路状态 `route` | ✅ | `routeOdometerTest` 11 项：剩余长度、岔口合并、撤销、id 稳定、未知边忽略 |
 | C | C4c 遥测：能源样本 `energy` | ✅ | 走 `Interop.sampleEnergy()` 聚合已注册的提供方；一个都没有时返回 `UNKNOWN` 并在 `/ctd host status` 注明「没有联动方，列车照常运行」 |
 | C | C5 指令执行（速度钳位） | ✅ | `run-acceptance.ps1 -IncludeDriving`：`speed ≥ 0.2 且 blocked=false` |
 | C | C6 信号写入 + 客户端显示 | ✅ 写入（含持久化）/ 🟡 灯色外观 | 写 `cachedStates` 会被 Create 每帧覆盖 → 新增 `SignalBoundaryTickStateMixin`（T-10）在 TAIL 覆盖非红；`/ctd host aspects` 实测 `takeover=true` 且 `FIRST=RED SECOND=GREEN` 稳定；过期自动交还原版。灯**看起来**对不对仍待人眼 |
 | C | C7 道岔翻译（逻辑锁） | ✅ | `switchApplierTest` **16 项**：上锁/解锁/冲突判定/多岔口互不干扰 |
-| C | C7b 道岔物理扳动 | 🟡 代码在、未验 | `PhysicalSwitches` 走 `railways:switch` 边点调 `trySetSwitchState`；**没有汽鸣铁道 jar 就跑不到**，所以只有代码路径、没有真机证据。`/ctd host switches` 会显示 `physical=no` |
+| C | C7b 道岔物理扳动 | 🟡 路径已通、缺真机放置 | `/ctd host switches` 报「物理扳动：可用」；但边点只能由玩家放方块注册，`/setblock` 不注册 |
 | C | C8 存档持久化 | ✅ | `tools/check-persistence.ps1`：写带时间戳的标记 → 存盘 → 停服 → 重启 → 读回比对 |
 | C | C9 安全兜底 | ✅ | `/ctd selftest` 的「兜底真的会开火」+ `/ctd host failures` |
 | C | C10 ATO 接入主循环 | ✅ | `atoPassTest` 10 项：只收紧/手动不接管/无制度缺席/坏引擎 10 次禁用/null 不干预 |
@@ -3221,3 +3221,31 @@ ctd:station_platform  124cd422-…  (还没收到过指令)
 | NeoForge | 21.1.219 → **21.1.233** | 汽鸣铁道 0.3.0-beta.2 要求 `[21.1.233,)`；Create 要求 `[21.1.219,)`，两边都满足 |
 | `run/mods` | 新增 `railways-0.3.0-beta.2+neoforge-mc1.21.1.jar` | 验证 C7b 物理扳动 |
 | `libs/ponder` | `runtimeOnly` → **`compileOnly` + `runtimeOnly`** | `SmartBlockEntity` 实现 Ponder 的 `VirtualBlockEntity`，编译期碰它就要这个接口可见 |
+
+### C7b 道岔物理扳动：从 🟡 到「代码在、路径通、缺一次真机放置」
+
+汽鸣铁道到位后（NeoForge 升到 21.1.233），这条终于能推进：
+
+| 检查 | 结果 |
+|---|---|
+| 汽鸣铁道加载 | ✅ `Create: Steam 'n' Rails 1.21.1 0.3.0-beta.2+neoforge-mc1.21.1 (railways)` |
+| 宿主识别到它 | ✅ `/ctd host switches` 首行：**物理扳动：可用（汽鸣铁道在场）** |
+| 逻辑锁生效 | ✅ 锁一个岔口后 `被锁住的岔口：1 个` + `holder=7` |
+| 物理扳动真的发生 | ❌ **没验到** |
+
+**为什么没验到**：`PhysicalSwitches` 要找 `railways:switch` 类型的边点，而边点是
+**玩家把道岔方块放到轨道上时注册的**。我用 `/setblock` 放方块，方块在位、
+但边点没有注册，所以 `pointsOf(graph)` 是空的，扳动路径根本没被走到。
+
+这不是代码缺陷，是**测试手段不够**：命令能放方块，不能模拟「放到轨道上」这个动作。
+所以 C7b 仍然标 🟡，理由从「缺 jar」改成了「缺一次真机放置」——这是**更准确的阻塞描述**。
+
+> 顺带记一个坑：`/setblock` 到未加载区块会报 `That position is not loaded`，
+> 要先 `/forceload add <x> <z>`。测试完记得 `/forceload remove`，否则那块地永远加载。
+
+### 进度表更新（K4 与 C7b）
+
+| 行 | 之前 | 现在 |
+|---|---|---|
+| K4 平台设备 | 🟡 地基完成、行为待清单 | 🟡 **车门接管与发车指示器已实现并实测**；站台屏幕（CRN 两个新显示器类型）未实现，原因见上 |
+| C7b 道岔物理扳动 | 🟡 代码在、未验（缺 jar） | 🟡 代码在、**路径已通**（汽鸣铁道在场），缺一次真机放置道岔 |
