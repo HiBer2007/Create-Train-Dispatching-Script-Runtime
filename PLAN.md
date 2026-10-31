@@ -34,7 +34,7 @@
 
 | 项 | 值 | 命令 |
 |---|---|---|
-| 离线验收 | **25 个任务 / 309 项 + 注入目标核对，全绿** | `pwsh -NoProfile -File tools/verify-all.ps1` |
+| 离线验收 | **25 个任务 / 347 项 + 注入目标核对，全绿** | `pwsh -NoProfile -File tools/verify-all.ps1` |
 | 游戏内自检 | **19 项全过** | `/ctd selftest` |
 | 真车驱动 | `speed=0.350 blocked=false` | `/ctd host status` |
 | 外部进程驱动 | `speed=0.300 blocked=false` | `ctdweb/tools/driving_client.py` |
@@ -3305,3 +3305,25 @@ PASS  指示器可查询        /ctd host indicator 必须给出「应显示=…
 那次是靠 `HostStateCommand` 发现的，这次提前用一条断言盯住。
 
 自检现在 **19 项**。
+
+### 自动开门规则抽成纯函数，离线钉死
+
+自动判定原先埋在 `DoorService.isTrainStoppedAt` 里，读 `Create.RAILWAYS.trains` 与实体位置——
+**没有真车就测不了**，而造一列真车要玩家装配，命令做不到。
+
+拆出 `DoorRules.canOpenAt(distanceSq, speed, derailed)`：
+
+| 断言 | 覆盖 |
+|---|---|
+| 停稳且在范围内 → 开 | 正常场景 |
+| 正好在半径上 → 开 | 边界包含 |
+| 超出半径 → 不开 | 边界排除 |
+| 还在动 → 不开 | 速度门槛 |
+| 刚好等于阈值 → 开 | 阈值包含 |
+| 脱轨 → 不开 | 安全优先 |
+| 脱轨优先于停稳 | 两条规则冲突时的顺序 |
+
+**能测的规则与不能测的取数分开**——这是这个项目反复用的同一个办法：
+世界里只剩「取数」，规则本身在离线测试里被钉死。
+
+`k4DoorTest` 30 → **38 项**；离线 **339 → 347 项**。
