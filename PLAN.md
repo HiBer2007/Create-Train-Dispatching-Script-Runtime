@@ -2087,3 +2087,43 @@ $docItems = (Get-Content 文档)    | 抽出 PASS 行
 
 **文档写了但实际没有**是假承诺；**实际有但文档没写**是遗漏。
 两个方向都要查——这次 `docs/17` 就是后者（少写 3 项）。
+
+**发布包重建：它里面的 jar 已经落后于源码**
+
+上一轮做的 `release/0.3.0/` 是在 C6 修复**之前**打的包。之后宿主改了
+`SignalApplier`、新增了 `SignalOverrides` 与 `SignalBoundaryTickStateMixin`、
+`selftest` 从 11 项变 12 项——**包里的 `ctd-host-0.3.0.jar` 全是旧的**。
+
+危险之处在于：`verify-release.ps1` 仍然会 PASS。它校验的是「包内自洽」
+（哈希与 manifest 与 `jars.json` 一致），**不校验「包是否等于当前源码」**。
+
+所以这一轮：四仓库 `clean build` → 重铺四个 jar → 重算 `jars.json` → 校验。
+
+```
+ctd-api-0.3.0.jar    220 KB
+ctd-host-0.3.0.jar   194 KB   ← 比上一版大 12 KB（C6 修复）
+ctd-script-0.3.0.jar  45,882 KB
+ctd-web-0.3.0.jar     55 KB
+发布包校验通过：四个 jar 的版本与哈希全部一致。
+```
+
+### 顺带修掉 `aspects` 的重复输出
+
+`/ctd host aspects` 以前每架信号机打印两遍——因为它沿节点遍历边，
+同一条边会从两端各访问一次，而我的去重键是「节点 + 边哈希」，天然算成两个。
+现在按**边点自己的 id** 去重：
+
+```
+3bbf72fe  FIRST=GREEN  SECOND=RED  override=-  forced=false/false
+a9dcfa61  FIRST=GREEN  SECOND=RED  override=-  forced=false/false
+2 signal(s); ...
+```
+
+看起来像「世界里有四架、实际两架」的错觉，是这种重复最容易害人的地方。
+
+### 一条值得记住的边界
+
+**「包内一致」不等于「包与源码一致」。** 前者能自动校验（哈希），
+后者只能靠流程：改完代码 → 重建 → 重铺 → 重校验。
+如果以后要自动化，需要一个 `release.ps1` 把这三步串起来，并在
+`jars.json` 里记下**构建时的 git commit**，这样「包是否落后」才有判据。
