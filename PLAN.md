@@ -35,7 +35,7 @@
 | 项 | 值 | 命令 |
 |---|---|---|
 | 离线验收 | **25 个任务 / 309 项 + 注入目标核对，全绿** | `pwsh -NoProfile -File tools/verify-all.ps1` |
-| 游戏内自检 | **18 项全过** | `/ctd selftest` |
+| 游戏内自检 | **19 项全过** | `/ctd selftest` |
 | 真车驱动 | `speed=0.350 blocked=false` | `/ctd host status` |
 | 外部进程驱动 | `speed=0.300 blocked=false` | `ctdweb/tools/driving_client.py` |
 | 模组共存 | 十项全过 | `tools/check-mod-coexistence.ps1 -JarPatterns <名字>` |
@@ -3276,3 +3276,32 @@ PASS  指示器可查询        /ctd host indicator 必须给出「应显示=…
 我第一版把函数名写成了 `Send-Rcon`，脚本跑到那里直接退出、退出码 1，
 但**前面 19 项全是 PASS**——如果只看「跑完了」，会以为一切正常。
 退出码才是结论，输出好看不是。
+
+### 门许可进了存档：重启不再悄悄回到自动
+
+「显式允许/禁止开门」原先只在内存里。一次重启就回到自动判定——
+**这是安全相关的行为，不能靠「应该不会重启」保证**。
+
+| 环节 | 实现 |
+|---|---|
+| 存储 | `HostSavedData` 新增 `DoorPermissions` 复合标签（`x,y,z → boolean`） |
+| 写入 | `DoorPermissions.setExplicit` 之后立刻 `persist()` |
+| 读取 | `CtdHost#onServerStarting` 里 `loadFrom(tag)` |
+| 自检 | 新增第 19 项「门许可可持久化」，判据是 `hasPersister()` |
+
+**跨重启实测**：
+
+```
+设置:   -23, -60, 0 显式 禁止开门
+存档:   world/data/ctdhost.dat 含 DoorPermissions 与坐标 -23,-60,0（209 B）
+重启后: -23, -60, 0 ... doorsAllowed=false (显式)   ← 读回来了
+```
+
+### 为什么自检用 `hasPersister()` 而不是「读回来对不对」
+
+因为**读回来对不对只能靠重启验证**，而自检在运行中跑。
+`hasPersister()` 盯的是这一类 bug 的真实成因：**接线没接上**。
+这正是 `HostSavedData` 早先「写好了 save/load 却从没被实例化」的同一种失败——
+那次是靠 `HostStateCommand` 发现的，这次提前用一条断言盯住。
+
+自检现在 **19 项**。
