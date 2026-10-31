@@ -2459,8 +2459,8 @@ holder 始终是 1——抢不走。
 | 守卫 | 触发过吗 | 怎么证明 |
 |---|---|---|
 | `CorruptScheduleTickMixin`（源头摘除） | ✅ **是** | `/ctd host schedule corrupt` 注入 → 服务端存活 10 秒、`swallowed` 记 1 条、`selftest` 报 `时刻表健康` FAIL |
-| `ScheduleRuntimeTickGuardMixin`（停摆） | ❌ 否 | 源头已把 `schedule` 置空，走不到这里。保留作第二条线（有非 tick 调用路径） |
-| `ScheduleRuntimeGuardMixin`（estimateStayDuration） | ❌ 否 | 同上。它是**显示路径**的兜底，正常 tick 里已被前一环挡住 |
+| `ScheduleRuntimeTickGuardMixin`（停摆） | ✅ **是** | `selftest` 借真车 runtime 直接赋坏时刻表并当场调 `tick(null)`，未抛异常 |
+| `ScheduleRuntimeGuardMixin`（estimateStayDuration） | ✅ **是** | `selftest` 反射调用私有方法，损坏时刻表下返回 `-2`（CTD_INVALID）而不是越界 |
 | `SignalBoundaryTickStateMixin`（灯色接管） | ✅ 是 | `/ctd host aspects` 读到 `takeover=true` 且 `FIRST=RED SECOND=GREEN` |
 | `selftest` 的 `时刻表健康` | ✅ 是 | 世界里有坏时刻表时它 FAIL，修好后 PASS（正反两面都见过） |
 | `SwitchApplier` 冲突拒绝 | ✅ 是 | 两个内核抢岔口，`rejected=74`，holder 保持 1 |
@@ -2513,3 +2513,58 @@ swallowed: 1 类
 实测连坏两次都有记录。
 
 **报警去重必须跟着状态回收**，否则第二次故障就是静默的。
+
+**两道「第二防线」现在当场证明会开火**
+
+上一轮的表里有两行写着「❌ 未触发」——它们是 `ScheduleRuntime` 的 tick 停摆守卫
+和 `estimateStayDuration` 的返回兜底。注册了、但一次都没见它们开过火。
+
+这一轮加了一条自检项 **`兜底真的会开火`**，直接在游戏里当场调用：
+
+```java
+// 借一列真车的 runtime，把坏时刻表直接赋给字段（绕开 setSchedule 的副作用）
+runtime.schedule = new Schedule(new ArrayList<>(), true, 0);
+
+// ① 私有方法，反射调用；期望 -2（CTD_INVALID），而不是 IndexOutOfBounds
+estimateStayDuration(0)  →  -2
+// ② 公开方法直接调；期望不抛
+runtime.tick(null)       →  正常返回
+```
+
+两步都在同一个命令调用里完成、立即还原，不泄漏到下个 tick。
+**如果守卫是坏的，这里会当场崩**——那正是它该暴露的。
+
+现在 15 项自检，`兜底真的会开火` PASS，服务端仍然活着。
+
+### 这张表现在的样子
+
+| 守卫 | 触发过吗 |
+|---|---|
+| 时刻表源头摘除 | ✅ 实测（注入 → 存活 → 记录） |
+| 时刻表停摆 | ✅ 实测（当场调 tick 不抛） |
+| estimateStayDuration 兜底 | ✅ 实测（返回 -2） |
+| 灯色接管 | ✅ 实测（takeover=true） |
+| 岔口冲突拒绝 | ✅ 实测（rejected=74，holder 不变） |
+
+**六行里没有一行是「注册了就算」**。这张表是这一轮最实在的产出：
+它把「我以为验过」变成了「见过它开火」。
+
+**自检不能污染它正在检查的通道**
+
+`兜底真的会开火` 这项自检要**故意**触发守卫，而守卫会往 `swallowed` 记一条。
+结果：跑一次自检，验收就永远红——和上一轮刚修掉的问题一模一样，
+只是这次的污染源是**检查本身**。
+
+修法：`Failures.beginSuppression()` / `endSuppression()`。
+在验证窗口内 `caught()` 直接返回，窗口结束照常记录。
+自检前后各跑一次，`swallowed` 仍是 `none`。
+
+### 顺带踩到一个依赖坑
+
+`ctdhost` 依赖的是 `libs/` 里**预构建的 api jar**，不是源码工程。
+我改了 `ctdapi` 的源码后没重打 jar，于是 `ctdhost` 编译报「找不到符号」，
+而 `ctdapi` 自己 `compileJava` 是成功的。
+
+**两个仓库的绿灯互不蕴含。** 改了契约层必须重打 jar 并铺到依赖方，
+否则你看到的是「两个都成功、合起来不能用」。这条已经写进操作习惯：
+改 `ctdapi` 之后一律 `gradlew jar` + 复制到三个 `libs/`。
