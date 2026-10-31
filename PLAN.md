@@ -1685,3 +1685,28 @@ manifest 配置对——在 `runServer` 里看到的 `0.0NONE` 只是因为开�
 
 把限制写在别人读得到的地方，比写在 PLAN 里更有用——
 PLAN 是给自己人看的，README 是给装包的人看的。
+
+**安装测试：jar 形态此前从未被运行过**
+
+一个一直被忽略的缺口：开发环境里 `ctdhost` 从 `build/classes` 加载，
+**发布包里的 host jar 从来没有以 jar 的形式跑起来过**。
+也就是说「四个 jar 丢进 mods/ 就能用」这句话一直是**推断**，不是验证。
+
+测法（可复现）：临时注释 `build.gradle` 的 `mods { ctdhost { … } }`，
+把 `release/0.3.0/` 四个 jar 放进 `run/mods`，启动服务端。
+
+| 检查 | 结果 |
+|---|---|
+| 四个模组被识别 | 日志 `… API/Host/Script Runtime/Web Bridge 0.3.0` |
+| **版本号** | 四个都是 `0.3.0`（**不再是 `0.0NONE`**） |
+| mixin 从 jar 生效 | `selftest` **11 项全过**（含 `Train#tick`、被动减速、时刻表兜底） |
+| 脚本内核 | `kernels: 5` |
+| 静默失败 | `swallowed: none` |
+| 真车驱动 | `speed=0.350 blocked=false` |
+
+**这条回答了一个之前只能假设的问题**：`[[mixins]]` 写在 jar 的 toml 里、
+mixin 配置打进 jar，装的形态下同样生效。开发环境的 `0.0NONE` 只是
+从 classes 加载、没有 manifest 造成的。
+
+测完已还原（`build.gradle` 恢复、`run/mods` 恢复两个 jar），
+开发环境自检仍 11 项全过——**测试没有留下脏状态**，这也是它可重跑的前提。
