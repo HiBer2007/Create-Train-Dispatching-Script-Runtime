@@ -373,28 +373,33 @@ L1 (标志进镜像) ──► L2 (区间限速) ──► L3 (脚本动作)
 
 ## 12. 进度表（每完成一项就更新这里）
 
+> 核对方式：`verify-all.ps1`（离线）+ `run-acceptance.ps1`（服务端）都全绿，
+> 且表中每行的证据能对上一条真实命令或测试名。**「本轮」这类相对时间词不写进表里**——
+> 累积文档里它很快会失去意义；要写就写日期。
+
+
 | 阶段 | 任务 | 状态 | 证据 |
 |---|---|---|---|
 | A | A1 `Rail.NodeId`/`EdgeId` 字符串编解码 | ✅ | `RailCodecTest` 往返 1000 次 |
-| A | A2 `ctx.switches()` 暴露岔口锁闭 | ✅ 本轮 | `HostRuntime` 从 `SwitchApplier.locks()` + `holderOf()` 构造 `FrameContext.SwitchState` |
+| A | A2 `ctx.switches()` 暴露岔口锁闭 | ✅ | `HostRuntime` 从 `SwitchApplier.locks()` + `holderOf()` 构造 `FrameContext.SwitchState` |
 | A | A3 `out.lock_switch` / `unlock_switch` | ✅ | `FrameOutput` → `Command.SwitchCommand` |
 | A | A4–A6 设备 / 能源 / 运营指令桥接 | ✅ | 转交 `OperationFeed` + `DeviceCommands` 落点（`deviceCmds=1/7` 实测） |
 | A | A7 设备注册带 `signalSystems` | ✅ | `DeviceKind.signalSystem()` |
 | C | C2 `GlobalRailwayManager#tick` 注入 | ✅ | 启动自检 `MixinChecks`，缺注入直接拒绝启动 |
-| C | C3 拓扑镜像（含信号机） | ✅ | `/ctd host status` 显示 `nodes=28 edges=29 signals=2` |
-| C | C4 遥测：速度 / 位置 / **里程** / **车载制度** | ✅ 本轮补测 | `routeOdometerTest` 6 项：有符号累加、多车独立、prune 清理 |
-| C | C4b 遥测：进路状态 `route` | ✅ 本轮补测 | `routeOdometerTest` 11 项：剩余长度、岔口合并、撤销、id 稳定、未知边忽略 |度与需锁岔口 → 回填 `TrainState.route` |
-| C | C4c 遥测：能源样本 `energy` | ✅ 本轮 | 走 `Interop.sampleEnergy()` 聚合已注册的提供方；一个都没有时返回 `UNKNOWN` 并在 `/ctd host status` 注明「没有联动方，列车照常运行」 |
-| C | C5 指令执行（速度钳位） | ✅ 本轮实测 | `speed=0.350 blocked=false`（脚本开车），到轨道尽头转 `blocked=true` |
-| C | C6 信号写入 + 客户端显示 | ✅ 写入 / 🟡 灯色 | 内核把两架信号机写成 `ctd:clear`（日志逐面确认）；客户端灯色仍待人工看一眼 |
-| C | C7 道岔翻译（逻辑锁） | ✅ 本轮补测 | `switchApplierTest` **16 项**：上锁/解锁/冲突判定/多岔口互不干扰 |
-| C | C7b 道岔物理扳动 | ✅ 本轮 | `PhysicalSwitches` 通过 `railways:switch` 边点调 `trySetSwitchState`；未装汽鸣铁道时自动退化为逻辑锁并在状态里注明 |
-| C | C8 存档持久化 | ✅ 本轮实测 | 写入 → `/stop` → 重启 → 读回 `world/data/ctdhost.dat`；`Env.state()` 已接真实存档 |
+| C | C3 拓扑镜像（含信号机） | ✅ | `/ctd host status` 显示 `nodes=676 edges=677 signals=2`（数值随铺轨变化）；`aspects` 每条边界只打印一次 |
+| C | C4 遥测：速度 / 位置 / **里程** / **车载制度** | ✅ | `routeOdometerTest` 6 项：有符号累加、多车独立、prune 清理 |
+| C | C4b 遥测：进路状态 `route` | ✅ | `routeOdometerTest` 11 项：剩余长度、岔口合并、撤销、id 稳定、未知边忽略 |
+| C | C4c 遥测：能源样本 `energy` | ✅ | 走 `Interop.sampleEnergy()` 聚合已注册的提供方；一个都没有时返回 `UNKNOWN` 并在 `/ctd host status` 注明「没有联动方，列车照常运行」 |
+| C | C5 指令执行（速度钳位） | ✅ | `speed=0.350 blocked=false`（脚本开车），到轨道尽头转 `blocked=true` |
+| C | C6 信号写入 + 客户端显示 | ✅ 写入（含持久化）/ 🟡 灯色外观 | 写 `cachedStates` 会被 Create 每帧覆盖 → 新增 `SignalBoundaryTickStateMixin`（T-10）在 TAIL 覆盖非红；`/ctd host aspects` 实测 `takeover=true` 且 `FIRST=RED SECOND=GREEN` 稳定；过期自动交还原版。灯**看起来**对不对仍待人眼 |
+| C | C7 道岔翻译（逻辑锁） | ✅ | `switchApplierTest` **16 项**：上锁/解锁/冲突判定/多岔口互不干扰 |
+| C | C7b 道岔物理扳动 | ✅ | `PhysicalSwitches` 通过 `railways:switch` 边点调 `trySetSwitchState`；未装汽鸣铁道时自动退化为逻辑锁并在状态里注明 |
+| C | C8 存档持久化 | ✅ | 写入 → `/stop` → 重启 → 读回（`restart-proof=持久化-复验-92`，`world/data/ctdhost.dat` 196 B）；2026-10-31 复验 |
 | C | C9 安全兜底 | ✅ | 连续失败禁用 + 注入自检 |
-| C | C10 ATO 接入主循环 | ✅ 本轮补测 | `atoPassTest` 10 项：只收紧/手动不接管/无制度缺席/坏引擎 10 次禁用/null 不干预 |
+| C | C10 ATO 接入主循环 | ✅ | `atoPassTest` 10 项：只收紧/手动不接管/无制度缺席/坏引擎 10 次禁用/null 不干预 |
 | B | B1–B4 全量重载（**不回滚**） | ✅ | 五个注册表纳入解冻/冻结；`reloadTest` 14 项：只跑可重载目录、失败可见且不回滚、连续两次不失效 |
 | D | Web 桥接 | ✅ 闭环 | 外部 Python 进程**真的把车开到 0.300**：`speed=0.300 target=0.300 blocked=false` |
-| F | 文档与实测 | ✅ 除人工项 | `docs/17` §7 诊断表、`docs/16` §9 失败语义、`docs/18` 0.3.0、`docs/19` 交接；灯色/HUD/道岔物理仍待现场看 |
+| F | 文档、实测与发布 | ✅ 除人工项 | `docs/16` §8.5–8.7（发布验证 / 包 / 安装形态）、§9 失败语义；`docs/17` §9 十二格；`docs/19` 交接；`release/0.3.0/` 由 `tools/release.ps1` 生成并校验；灯色/HUD/道岔物理仍待现场看 |
 
 **本轮（审查 + 修补）**：修掉了三个「有代码、无数据」的断点——内核拿到的信号快照恒空、
 里程恒为 0、每列车的信号系统恒空。这三处都属于「现象看起来像渲染/算法问题，
@@ -1770,7 +1775,7 @@ mixin 配置打进 jar，装的形态下同样生效。开发环境的 `0.0NONE`
 | 层 | 证据 | 状态 |
 |---|---|---|
 | 脚本内核驱动 | `speed=0.350 blocked=false` | ✅ |
-| 外部进程驱动 | `speed=0.300 blocked=false` | ✅ 本轮复验 |
+| 外部进程驱动 | `speed=0.300 blocked=false` | ✅ 2026-10-31 复验 |
 | jar 安装形态 | 四模组 0.3.0 + selftest 11 项 | ✅ 上一轮 |
 
 **存档复验通过；信号写入的证据被如实降级**
@@ -2196,3 +2201,29 @@ ctd-web-0.3.0.jar    8095f6b  2026-10-31 10:49:24
 
 代价是每次约 6 分钟（改配置 → 启动 → 验 → 还原 → 再启动）。
 对发布前的批次值得，对每次改代码不值得——所以它是「发版前」的步骤，不是每轮的步骤。
+
+**进度表本身也审计了一遍**
+
+目标里写着「每完成一项就更新进度表」。既然要拿它当依据，就得先看它准不准。
+这一轮逐行核对，改了四处：
+
+| 行 | 过期内容 | 现在 |
+|---|---|---|
+| C3 拓扑镜像 | `nodes=28 edges=29` | `nodes=676 edges=677`（并注明数值随铺轨变化） |
+| **C6 信号写入** | 「✅ 写入 / 🟡 灯色」，证据是「日志逐面确认」 | ✅ 写入（含持久化）：写了会被覆盖 → T-10 注入 → `aspects` 实测 `takeover=true`；灯外观仍 🟡 |
+| C8 存档 | 「✅ 本轮实测」 | 具体证据（`restart-proof=持久化-复验-92`、196 B）+ 日期 |
+| F 文档与实测 | 只列 `docs/17` §7 | 补 `docs/16` §8.5–8.7、§9、`release/0.3.0/` 由 `release.ps1` 生成 |
+
+顺带两件小事：
+
+1. **把「本轮」「本轮补测」这类相对时间词从表里清掉**（正文的轮次记录保留）。
+   累积文档里「本轮」三个月后就是噪音；要写就写日期。
+2. **修掉 C4b 行末尾串进来的半截句子**（`|度与需锁岔口 → 回填 …`）——
+   那是某次编辑留下的残渣，一直在表里。
+
+### 表头加了核对方式
+
+> 核对方式：`verify-all.ps1` + `run-acceptance.ps1` 都全绿，
+> 且表中每行的证据能对上一条真实命令或测试名。「本轮」这类词不写进表里。
+
+这条比「每完成一项就更新」更可执行：**前者是要求，后者是判据**。
