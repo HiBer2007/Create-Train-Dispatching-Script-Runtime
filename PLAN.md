@@ -1454,3 +1454,33 @@ java.lang.IndexOutOfBoundsException: Index 0 out of bounds for length 0
 控制实验（拿掉 CRN 仍崩）和 crash report 的栈证明**与 CRN 无关**。
 这正是「一次观察」与「可重跑验证」的差别——`check-mod-coexistence.ps1` 那种脚本
 能排除的是「装没装上、注没注入」，排不了「谁的逻辑写坏了存档」。
+
+**把那次崩溃变成可检测的状态**
+
+事故之后做的不是「下次小心」，而是让那个状态**一启动就报出来**：
+
+| 位置 | 行为 |
+|---|---|
+| `ScheduleHealth.isCorrupt(cyclic, entries)` | 纯函数：只有 `cyclic=true` 且条目 ≤ 0 算损坏 |
+| `/ctd selftest` | 新增第 6 项「时刻表健康」，损坏时直接给出修复命令 |
+| `scheduleHealthTest` | 10 项：六种组合的判定 + 四类说明文本 |
+
+**不误报是这项检查的生死线**：`非 cyclic + 空表` 是安全的（Create 返回 INVALID），
+如果把它也算损坏，人很快就会习惯忽略这一项——那它就退化成装饰。
+测试里专门有一条守着这个边界。
+
+另外把「列车状态可读」改成空车队时显示
+`列车状态可读（无车，跳过）`：全新世界没有车是**正常状态**，
+判成 FAIL 会让自检在新世界里永远是红的，同样会让人开始忽略它。
+
+实测（新世界）：
+
+```
+CTD selftest — 全部通过
+  PASS  Train#tick 注入        PASS  拓扑缓存生效      PASS  内核台账可读写
+  PASS  被动减速拦截            PASS  时刻表健康        PASS  列车状态可读（无车，跳过）
+  PASS  SignalBoundary 注入     PASS  已注册内核
+  PASS  拓扑非空                PASS  控制通道可入队/可取出
+```
+
+离线验收 **23 个任务 / 265 项检查**。
