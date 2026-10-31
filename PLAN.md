@@ -2714,3 +2714,43 @@ FAILED 4/8 scripts loaded
 超时之后 `FAILED 4/8`——排在 `spin2.py` 后面的脚本没被加载。
 这是「不回滚」语义的直接后果：**部分加载就是部分加载**，脚本报错说清了是哪一条。
 下一次 `/ctd reload`（文件删掉后）恢复 `7/7`，`probe:spin2` 也随之消失。
+
+**R5 的登记表，现在会被核对**
+
+R5 要求每处注入点登记 `类#方法`、选择器、基线行号，理由是「上游一改就静默失效」。
+但**登记了没人核对，等于没登记**。这一轮补上核对，并顺手修掉表里的两处失真。
+
+### 新增 `tools/check-mixin-targets.ps1`
+
+把 `docs/03` 里「已实现」的行抽出来，逐个到 `Create/src` 里找那个方法：
+
+```
+PASS  T-3 Train#tickPassiveSlowdown
+PASS  T-4 SignalBoundary#tickState
+PASS  T-7 GlobalRailwayManager#tick
+PASS  T-8 ScheduleRuntime#estimateStayDuration
+PASS  T-9 TrackGraph#addNode/removeNode/connectNodes/disconnectNodes
+注入目标核对通过：5 条已实现的登记都还能在源码里找到。
+```
+
+失败路径实测过：把 `tickPassiveSlowdown` 改成一个不存在的名字 → `FAIL … 方法不在 Train.java 里`，退出码 1。
+已接进 `verify-all.ps1`（跑完 gradle 任务后单独跑一次，失败也算整体失败）。
+
+### 表里的两处失真
+
+| 行 | 问题 | 处理 |
+|---|---|---|
+| **T-10** | 写的是「`@Inject HEAD, cancellable` 取消重算」——那是**上一版的实现**，现在已改成 TAIL + `resolve()` | 删掉 T-10，并入 T-4，并把 T-4 的描述改成实际做法 |
+| T-1 / T-2 / T-5 / T-6 | 是「整体接管」方案里的设计，**从来没实现** | 加一列「实现状态」，标 ❌ 仅设计 |
+
+第二条比第一条重要：一张**设计表和实现清单混在一起**的表，会让人以为
+`SignalEdgeGroup#isOccupiedUnless` 已经被我们改过——而实际上没有。
+所以现在每行都带状态：✅ 有对应 mixin / ❌ 仅设计。
+
+### 为什么这件事值得做
+
+上游一改方法名，我们的 mixin 会在**启动时**才炸（`require = 1`），
+或者更糟——`require = 0` 的地方静默不生效。而文档里的行号早就漂了。
+
+这个脚本不能替代启动自检（它不检查选择器），但它能在**改代码之前**就告诉人
+「这条登记已经过期」。**能提前发现的事，不要留到运行时。**
