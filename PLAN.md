@@ -18,13 +18,13 @@
 
 | 项 | 值 | 命令 |
 |---|---|---|
-| 离线验收 | **24 个任务 / 286 项，全绿** | `pwsh -NoProfile -File tools/verify-all.ps1` |
-| 游戏内自检 | **12 项全过** | `/ctd selftest` |
+| 离线验收 | **24 个任务 / 290 项 + 注入目标核对，全绿** | `pwsh -NoProfile -File tools/verify-all.ps1` |
+| 游戏内自检 | **18 项全过** | `/ctd selftest` |
 | 真车驱动 | `speed=0.350 blocked=false` | `/ctd host status` |
 | 外部进程驱动 | `speed=0.300 blocked=false` | `ctdweb/tools/driving_client.py` |
 | 模组共存 | 十项全过 | `tools/check-mod-coexistence.ps1 -JarPatterns <名字>` |
 | 静默失败 | `swallowed: none` | `/ctd host status` |
-| 服务端侧验收 | **15 项**（含驱动 17 项） | `tools/run-acceptance.ps1 [-IncludeDriving]` |
+| 服务端侧验收 | **19 项**（`-IncludeFailurePath` 27 项、`-IncludeDriving` +2） | `tools/run-acceptance.ps1` |
 | 灯色写入 | 持久 + 红灯不放宽 | `/ctd host aspects` 显示 `takeover=true` |
 
 ### 仍需外部输入
@@ -387,6 +387,9 @@ L1 (标志进镜像) ──► L2 (区间限速) ──► L3 (脚本动作)
 | A | A7 设备注册带 `signalSystems` | ✅ | `deviceRegistryTest`（14 项） |
 | C | C2 `GlobalRailwayManager#tick` 注入 | ✅ | `/ctd selftest` 的「Train#tick 注入」等项 + `run-acceptance.ps1` |
 | C | C3 拓扑镜像（含信号机） | ✅ | `/ctd host status` 显示 `nodes=676 edges=677 signals=2`（数值随铺轨变化）；`aspects` 每条边界只打印一次 |
+| C | C3b 车站 / 地面设备 / 岔口 / 区段进拓扑 | ✅ | `/ctd selftest` 的「车站已收录」「岔口已收录」「区段已收录」+ `run-acceptance.ps1` 的「车站与设备可见」 |
+| C | C3c 脚本可见 `ctx.stations()` / `ctx.devices()` | ✅ | 内核实测输出 `[sites] stations=3 devices=3`；`/ctd host devices` 列出设备与指令对照 |
+| C | K4 平台设备（车门 / 站台屏 / 发车指示器） | 🟡 地基完成、行为待清单 | 地基：设备进拓扑、脚本寻址、指令下发、落点查询、自检五项齐备。**每类设备的方块与语义未实现——需要设备清单** |
 | C | C4 遥测：速度 / 位置 / **里程** / **车载制度** | ✅ | `routeOdometerTest` 6 项：有符号累加、多车独立、prune 清理 |
 | C | C4b 遥测：进路状态 `route` | ✅ | `routeOdometerTest` 11 项：剩余长度、岔口合并、撤销、id 稳定、未知边忽略 |
 | C | C4c 遥测：能源样本 `energy` | ✅ | 走 `Interop.sampleEnergy()` 聚合已注册的提供方；一个都没有时返回 `UNKNOWN` 并在 `/ctd host status` 注明「没有联动方，列车照常运行」 |
@@ -870,7 +873,7 @@ ebuilds= | 稳态 1200 刻只重建 1 次 |
 | 项 | 缺什么 |
 |---|---|
 | 灯色 / HUD 外观 / 道岔物理位置 | 需要人看着屏幕 |
-| K4 平台设备 | 规格未定，未实现 |
+| K4 平台设备 | 地基已完成（拓扑/寻址/下发/查询/自检）；**每类设备的方块与行为待清单** |
 | CRN 集成 | 缺对应 jar |
 
 ### 本轮正在做、尚未完成
@@ -3013,3 +3016,27 @@ ctd:station_platform  124cd422-…  (还没收到过指令)
 
 **「看起来什么都没发生」往往是因为某处已经失败了**，只是失败被限制在它自己那一帧。
 查这类问题的顺序：先 `/ctd host kernels` 看它还在不在，再翻日志找 `failed (n consecutive)`。
+
+**进度表补上这四轮的成果，并校正数字**
+
+目标里写着「每完成一项必须立即更新进度表」。这四轮补了拓扑的四个集合与脚本门面，
+但表里一直没体现——现在补上三行：
+
+| 行 | 状态 | 证据 |
+|---|---|---|
+| C3b 车站 / 地面设备 / 岔口 / 区段进拓扑 | ✅ | selftest 的「车站已收录」「岔口已收录」「区段已收录」+ 验收的「车站与设备可见」 |
+| C3c 脚本可见 `ctx.stations()` / `ctx.devices()` | ✅ | 内核实测 `[sites] stations=3 devices=3`；`/ctd host devices` 设备与指令对照 |
+| K4 平台设备 | 🟡 地基完成、行为待清单 | 五项地基齐备；每类设备的方块与语义未实现 |
+
+### 顺手校正了一处数字
+
+文档里写着「服务端验收 21 项含失败路径」，实际跑出来是 **19 项默认 / 27 项含失败路径**。
+数字是拿脚本数出来的：
+
+```
+默认运行:   PASS=19 FAIL=0
+含失败路径: PASS=27
+游戏内自检: PASS=18
+```
+
+这类数字每加一条检查就会变，所以**写之前先跑一遍数一遍**。
