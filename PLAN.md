@@ -1862,3 +1862,56 @@ mixin 配置打进 jar，装的形态下同样生效。开发环境的 `0.0NONE`
 `/ctd host aspects` 是**实时**读 `cachedStates` 的命令（拓扑镜像是重建快照，
 不能用来验证写入）。它现在是判断「信号写入是否生效」的唯一可复跑手段——
 也正是它让这个 bug 暴露出来。
+
+**C6 修好了：灯色现在活得比一帧长**
+
+上一轮挖出的缺陷，这一轮修完并验证。
+
+### 改了什么
+
+| 组件 | 作用 |
+|---|---|
+| `SignalOverrides` | 记录「我方想让这条边界两面显示什么」，带 60 tick 过期 |
+| `SignalApplier` | 写 `cachedStates` 的同时**记下意图**（原先只写字段） |
+| `SignalBoundaryTickStateMixin`（T-10） | 在 `tickState` HEAD：两面都有新鲜意图时写入并取消原版重算；否则完全放行 |
+| `/ctd host aspects` | 实时读 `cachedStates`，并显示 `override=… takeover=… forced=…` |
+| `selftest` 第 6 项 | `灯色接管注入`：证明这个 mixin 真的落在 `SignalBoundary` 上 |
+
+### 验证（真服务端）
+
+探针把 FIRST 写成 `ctd:stop`、SECOND 写成 `ctd:clear`，实时读回：
+
+```
+3bbf72fe  FIRST=RED  SECOND=GREEN  override=RED/GREEN takeover=true  forced=false/false
+```
+
+连续四次采样一致——**两面独立、写入持久**。这是修复前做不到的
+（那时 `FIRST` 永远是 Create 自己算的 GREEN）。
+
+### 过期与安全（这条比「能写」更重要）
+
+停掉探针、等过 60 tick：
+
+```
+3bbf72fe  FIRST=GREEN  SECOND=RED  override=RED/GREEN(stale) takeover=false
+```
+
+灯**自动交回** Create。如果没有过期机制，内核崩掉或被禁用之后，
+最后写下的灯色会永久生效——绿灯永远绿，那比不接管危险得多。
+
+### 做这件事时踩的两个坑
+
+1. **实验设计不干净**：探针只写一面、还每帧摇摆，读回根本判断不了是谁写的。
+   改成「两面写死成不同值」后一次就读出结论。**不确定的实验给出不确定的结论**，
+   而我先前差点把它记成「修好了」。
+2. **TTL 比写入间隔短**：最初 TTL=20 tick、探针每 40 tick 写一次，
+   意图在两次写之间过期，表现成「时好时坏」。改成 60 tick。
+
+### 状态
+
+| 项 | 之前 | 现在 |
+|---|---|---|
+| C6 信号写入 | 🟡 被每帧覆盖 | ✅ **实测持久，且会安全过期** |
+
+游戏内自检 **12 项**。灯**看起来**对不对仍需人眼（渲染/贴图），
+但「写进去的灯色是否生效」现在有了可复跑的判据。
