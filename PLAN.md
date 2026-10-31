@@ -381,24 +381,24 @@ L1 (标志进镜像) ──► L2 (区间限速) ──► L3 (脚本动作)
 | 阶段 | 任务 | 状态 | 证据 |
 |---|---|---|---|
 | A | A1 `Rail.NodeId`/`EdgeId` 字符串编解码 | ✅ | `RailCodecTest` 往返 1000 次 |
-| A | A2 `ctx.switches()` 暴露岔口锁闭 | ✅ | `HostRuntime` 从 `SwitchApplier.locks()` + `holderOf()` 构造 `FrameContext.SwitchState` |
-| A | A3 `out.lock_switch` / `unlock_switch` | ✅ | `FrameOutput` → `Command.SwitchCommand` |
-| A | A4–A6 设备 / 能源 / 运营指令桥接 | ✅ | 转交 `OperationFeed` + `DeviceCommands` 落点（`deviceCmds=1/7` 实测） |
-| A | A7 设备注册带 `signalSystems` | ✅ | `DeviceKind.signalSystem()` |
-| C | C2 `GlobalRailwayManager#tick` 注入 | ✅ | 启动自检 `MixinChecks`，缺注入直接拒绝启动 |
+| A | A2 `ctx.switches()` 暴露岔口锁闭 | ✅ | `deviceSwitchBridgeTest`（13 项）+ `/ctd host switches` 现场可见 |
+| A | A3 `out.lock_switch` / `unlock_switch` | ✅ | `switchApplierTest`（21 项）+ `/ctd host switches` / `clear` 实测 |
+| A | A4–A6 设备 / 能源 / 运营指令桥接 | ✅ | `deviceCommandsTest`（17 项）+ `/ctd host devices` 逐条读回 |
+| A | A7 设备注册带 `signalSystems` | ✅ | `deviceRegistryTest`（14 项） |
+| C | C2 `GlobalRailwayManager#tick` 注入 | ✅ | `/ctd selftest` 的「Train#tick 注入」等项 + `run-acceptance.ps1` |
 | C | C3 拓扑镜像（含信号机） | ✅ | `/ctd host status` 显示 `nodes=676 edges=677 signals=2`（数值随铺轨变化）；`aspects` 每条边界只打印一次 |
 | C | C4 遥测：速度 / 位置 / **里程** / **车载制度** | ✅ | `routeOdometerTest` 6 项：有符号累加、多车独立、prune 清理 |
 | C | C4b 遥测：进路状态 `route` | ✅ | `routeOdometerTest` 11 项：剩余长度、岔口合并、撤销、id 稳定、未知边忽略 |
 | C | C4c 遥测：能源样本 `energy` | ✅ | 走 `Interop.sampleEnergy()` 聚合已注册的提供方；一个都没有时返回 `UNKNOWN` 并在 `/ctd host status` 注明「没有联动方，列车照常运行」 |
-| C | C5 指令执行（速度钳位） | ✅ | `speed=0.350 blocked=false`（脚本开车），到轨道尽头转 `blocked=true` |
+| C | C5 指令执行（速度钳位） | ✅ | `run-acceptance.ps1 -IncludeDriving`：`speed ≥ 0.2 且 blocked=false` |
 | C | C6 信号写入 + 客户端显示 | ✅ 写入（含持久化）/ 🟡 灯色外观 | 写 `cachedStates` 会被 Create 每帧覆盖 → 新增 `SignalBoundaryTickStateMixin`（T-10）在 TAIL 覆盖非红；`/ctd host aspects` 实测 `takeover=true` 且 `FIRST=RED SECOND=GREEN` 稳定；过期自动交还原版。灯**看起来**对不对仍待人眼 |
 | C | C7 道岔翻译（逻辑锁） | ✅ | `switchApplierTest` **16 项**：上锁/解锁/冲突判定/多岔口互不干扰 |
-| C | C7b 道岔物理扳动 | ✅ | `PhysicalSwitches` 通过 `railways:switch` 边点调 `trySetSwitchState`；未装汽鸣铁道时自动退化为逻辑锁并在状态里注明 |
-| C | C8 存档持久化 | ✅ | 写入 → `/stop` → 重启 → 读回（`restart-proof=持久化-复验-92`，`world/data/ctdhost.dat` 196 B）；2026-10-31 复验 |
-| C | C9 安全兜底 | ✅ | 连续失败禁用 + 注入自检 |
+| C | C7b 道岔物理扳动 | 🟡 代码在、未验 | `PhysicalSwitches` 走 `railways:switch` 边点调 `trySetSwitchState`；**没有汽鸣铁道 jar 就跑不到**，所以只有代码路径、没有真机证据。`/ctd host switches` 会显示 `physical=no` |
+| C | C8 存档持久化 | ✅ | `tools/check-persistence.ps1`：写带时间戳的标记 → 存盘 → 停服 → 重启 → 读回比对 |
+| C | C9 安全兜底 | ✅ | `/ctd selftest` 的「兜底真的会开火」+ `/ctd host failures` |
 | C | C10 ATO 接入主循环 | ✅ | `atoPassTest` 10 项：只收紧/手动不接管/无制度缺席/坏引擎 10 次禁用/null 不干预 |
 | B | B1–B4 全量重载（**不回滚**） | ✅ | 五个注册表纳入解冻/冻结；`reloadTest` 14 项：只跑可重载目录、失败可见且不回滚、连续两次不失效 |
-| D | Web 桥接 | ✅ 闭环 | 外部 Python 进程**真的把车开到 0.300**：`speed=0.300 target=0.300 blocked=false` |
+| D | Web 桥接 | ✅ | `ctdweb/tools/driving_client.py`：外部进程把车开到 `speed=0.3`，宿主同期读到 0.300 |
 | F | 文档、实测与发布 | ✅ 除人工项 | `docs/16` §8.5–8.7（发布验证 / 包 / 安装形态）、§9 失败语义；`docs/17` §9 十二格；`docs/19` 交接；`release/0.3.0/` 由 `tools/release.ps1` 生成并校验；灯色/HUD/道岔物理仍待现场看 |
 
 **本轮（审查 + 修补）**：修掉了三个「有代码、无数据」的断点——内核拿到的信号快照恒空、
@@ -2817,3 +2817,37 @@ PASS  存档文件存在
 
 **「某个输出是空的」不能直接推出「功能不存在」。** 先问三件事：
 这个输出覆盖哪条路径、这条路径有没有生产者、另一个仓库里是不是有另一条路径。
+
+**按自己定的标准，把进度表逐行过了一遍**
+
+标准是：**✅ 必须能对上一次可复跑的检查**（gradle 任务 / 游戏内命令 / 写清期望值的步骤）。
+一次性观察（「我跑过一次，看到 X」）不算证据。
+
+用脚本把表里的「证据」列抽出来，看它有没有指向一个测试名或命令，结果 9 行不合格。
+它们不是假的，只是**证据的形式不可复跑**——于是把证据换成命令名：
+
+| 行 | 原来写什么 | 现在指向 |
+|---|---|---|
+| A2 `ctx.switches()` | 「`HostRuntime` 从 … 构造」 | `deviceSwitchBridgeTest` + `/ctd host switches` |
+| A3 上锁/解锁 | 「`FrameOutput` → `Command.SwitchCommand`」 | `switchApplierTest` 21 项 + `clear` 实测 |
+| A4–A6 桥接 | 「`deviceCmds=1/7` 实测」 | `deviceCommandsTest` + `/ctd host devices` |
+| A7 注册 | 「`DeviceKind.signalSystem()`」 | `deviceRegistryTest` 14 项 |
+| C2 注入 | 「启动自检 `MixinChecks`」 | `/ctd selftest` + `run-acceptance.ps1` |
+| C5 速度钳位 | 「`speed=0.350`」 | `-IncludeDriving` 的断言 |
+| C8 存档 | 「`restart-proof=…`」 | `check-persistence.ps1` |
+| C9 安全兜底 | 「连续失败禁用 + 注入自检」 | selftest「兜底真的会开火」+ `/ctd host failures` |
+| D 桥接 | 「外部进程开到 0.300」 | `driving_client.py` + 同期宿主读数 |
+
+### 一条被降级
+
+`C7b 道岔物理扳动` 原来是 ✅，理由是「`PhysicalSwitches` 会调 `trySetSwitchState`」——
+**那是代码路径，不是证据**。没有汽鸣铁道 jar，这条永远跑不到。
+改成 🟡「代码在、未验」，并写明 `/ctd host switches` 会显示 `physical=no`。
+
+这条降级比上面九条改写更重要：**一个跑不到的 ✅ 会让后面所有人以为它验过了。**
+
+### 现在这张表满足它自己声明的标准
+
+复跑一遍脚本：`没有可复跑证据的行: 0`。
+（表格本身没有自动化校验，但审计脚本可以作为一次性的检查手段；
+真正的判据仍是「表里指的那个命令能不能跑」——`run-acceptance.ps1` 会跑其中大部分。）
