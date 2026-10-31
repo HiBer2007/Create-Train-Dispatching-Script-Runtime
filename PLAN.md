@@ -1628,3 +1628,25 @@ OK  §12 进度表                      -> 1 处
 顺带记一个测量坑：`Get-Content | Measure-Object -Line` 数出 1168 行，
 而 `ReadAllLines().Count` 是 1605——后者把空行也算。**用错工具会让人以为文件被写坏了**，
 这一轮我差点就去"恢复"一个根本没丢的文件。
+
+**发布验证：四仓库 clean build + manifest 版本**
+
+之前一直在跑 `compileJava` / `jar`，那是「能编译」，不是「能发布」。
+这一轮做了真正的发布检查：
+
+| 检查 | 结果 |
+|---|---|
+| 四仓库 `clean build` | 全部 BUILD SUCCESSFUL |
+| `Implementation-Version` | 四个 jar 全是 **`0.3.0`**（不是 `0.0NONE`） |
+| 产物大小 | api 220 KB · host 182 KB · script-runtime 45,882 KB · web 55 KB |
+| API 边界 | `checkApiBoundary` 通过 |
+| 参考树零写入（R1） | 十个参考树 `git status` 全空 |
+
+唯一告警在 `ctdscript/net/CtdNetwork.java`：用了已标记 `removal` 的
+`EventBusSubscriber.bus()` / `Bus`。不阻塞构建，但 NeoForge 迟早移除——
+记在这里，等它真的报错时不用重新发现。
+
+**为什么这条值得单独记**：`clean build` 能过而 `jar` 也能过，说明没有隐藏的
+增量构建依赖；`Implementation-Version` 是 0.3.0 而不是 `0.0NONE`，说明
+manifest 配置对——在 `runServer` 里看到的 `0.0NONE` 只是因为开发环境从
+`build/classes` 加载、没有 jar manifest。
