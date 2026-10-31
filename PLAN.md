@@ -2988,3 +2988,28 @@ Gradle 直接报 `Unexpected character: '\''`。**改构建脚本的错误是响
 
 测完已还原：`build.gradle` 恢复 `mods {}`、`run/mods` 恢复两个 jar，
 开发环境自检仍 18 项全过。
+
+**设备这条链闭合了：内核 → 设备 → 指令，一条命令里能对上**
+
+之前 `/ctd host devices` 只列「哪些设备收到过指令」，是些孤立 UUID。
+现在它先列**世界里的设备**（来自拓扑的 `DeviceSite`），再列指令，
+并在一行里把两者对起来：
+
+```
+世界里的设备：3 台
+ctd:station_platform  6a848cba-…  <- {json={"door": "open", "from": "device_send"}}
+ctd:station_platform  7690dc63-…  (还没收到过指令)
+ctd:station_platform  124cd422-…  (还没收到过指令)
+```
+
+这条链是：脚本 `out.device(id, json)` → `DeviceCommands` 落点 → 拓扑里的设备站点 → 命令输出。
+**任何一环断了都看得见**：没设备就是拓扑没收录，有设备但没指令就是脚本没发或发错了 id。
+
+### 踩到的签名坑
+
+`out.device(deviceId, payloadJson)` 的第二个参数是 **JSON 字符串**，不是 dict。
+我按直觉传了 dict，内核每帧抛错、连续 10 次后被禁用——
+而 `/ctd host kernels` 里根本看不到它（注册失败了）。
+
+**「看起来什么都没发生」往往是因为某处已经失败了**，只是失败被限制在它自己那一帧。
+查这类问题的顺序：先 `/ctd host kernels` 看它还在不在，再翻日志找 `failed (n consecutive)`。
