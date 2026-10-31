@@ -167,6 +167,12 @@ tasks.register('operationBridgeTest', JavaExec) {
     systemProperty 'polyglot.engine.WarnInterpreterOnly', 'false'
 }
 
+tasks.register('sitesFacadeTest', JavaExec) {
+    group = 'verification'
+    description = '脚本门面的拓扑视图：车站/设备/岔口行格式'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'top.hibermod.ctdscript.tools.SitesFacadeTest'
+}
 tasks.register('sandboxTest', JavaExec) {
     group = 'verification'
     description = 'B6 验收：沙箱四道禁令'

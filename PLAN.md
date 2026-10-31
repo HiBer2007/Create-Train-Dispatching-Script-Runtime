@@ -18,7 +18,7 @@
 
 | 项 | 值 | 命令 |
 |---|---|---|
-| 离线验收 | **24 个任务 / 290 项 + 注入目标核对，全绿** | `pwsh -NoProfile -File tools/verify-all.ps1` |
+| 离线验收 | **25 个任务 / 309 项 + 注入目标核对，全绿** | `pwsh -NoProfile -File tools/verify-all.ps1` |
 | 游戏内自检 | **18 项全过** | `/ctd selftest` |
 | 真车驱动 | `speed=0.350 blocked=false` | `/ctd host status` |
 | 外部进程驱动 | `speed=0.300 blocked=false` | `ctdweb/tools/driving_client.py` |
@@ -3069,3 +3069,29 @@ ctd:station_platform  124cd422-…  (还没收到过指令)
 2. **区段只给 `section_count()`，不给列表**。当前口径是「一条边一个区段」，
    一个中等世界就 917 条；每帧把它们全转成 Python 列表是纯浪费。
    需要具体区段时走 Java 侧接口——**热路径上不要为了对称而付不必要的代价**。
+
+**新门面方法补上了离线测试（`sitesFacadeTest` 18 项）**
+
+`ctx.stations()` / `ctx.devices()` / `ctx.junctions()` / `ctx.section_count()`
+之前只有真机证据（一次探针输出）。按标准补离线测试：
+
+| 组 | 断言 |
+|---|---|
+| 车站 | 一行、5 个字段、id 原样、**中文名保留**、边编码非空、位置可解析 |
+| 设备 | 一行、5 个字段、类型 `ctd:station_platform` |
+| 岔口 | 一行、3 个字段、股道数、锁闭标志 |
+| 空值 | 拓扑为 `null` 时四个方法都返回空/0，**不抛** |
+
+「中文名保留」这条不是凑数：`Component.getString()` 与 `toString()` 在某些路径下不同，
+写错就会得到 `literal{中央站}` 这种带装饰的东西——而脚本只会当成站名用。
+
+### 写测试时踩的三个 Java 细节
+
+1. `FrameContext` 没有 `settings()`（我照着记忆写的），多了个不存在的方法；
+2. `SignalSystem` / `SignalType` 在 `top.hibermod.ctdapi.signal` 包里，不是 `Topology` 内部类；
+3. `Topology` 还有 `aspects()` / `aspect(...)` 两个抽象方法，假实现必须全部补齐。
+
+第三条尤其说明问题：**接口有 20 多个方法时，凭记忆写假实现必然失败**——
+编译器的报错列表才是准绳。
+
+离线验收现在 **25 个任务 / 309 项**。
