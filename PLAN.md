@@ -2851,3 +2851,38 @@ PASS  存档文件存在
 复跑一遍脚本：`没有可复跑证据的行: 0`。
 （表格本身没有自动化校验，但审计脚本可以作为一次性的检查手段；
 真正的判据仍是「表里指的那个命令能不能跑」——`run-acceptance.ps1` 会跑其中大部分。）
+
+**C 阶段补上一块真空：内核以前看不到车站**
+
+`Topology` 契约里一直有 `stations()` 与 `devices()`，宿主也实现了——
+但**没有任何代码往里填**，所以它们恒为空。内核想按站排进路，只能自己再扫一遍
+Create 的表；而脚本根本拿不到那张表，于是「按站调度」实际上做不了。
+
+### 补了三处
+
+| 位置 | 之前 | 现在 |
+|---|---|---|
+| `TopologyMirror` | 只收录节点/边/信号 | 从 `GlobalStation`（本身就是 Create 的边点）生成 `StationSite`，并为每个车站派生一个 `ctd:station_platform` 设备 |
+| 脚本门面 `FrameInput` | 只有 `trains()` / `signals()` / `devices_of()` | 新增 `stations()` / `devices()` |
+| `/ctd host status` | 无 | 新增 `sites: stations=3 (seen 3) devices=3` 一行 |
+
+`seen` 与 `mapped` 分开计数是有意的：第一次跑出来 `stations=0`，
+分不清「没找到车站」和「找到了但映射不到边」。分开之后一眼看出是哪一边的问题——
+**诊断信息要把「没想到」和「没做到」分开。**
+
+### 内核侧实测
+
+```
+[sites] stations=3 devices=3 signals=4
+[sites] station id=6a848cba-… name='Track Station' edge=minecraft:overworld@-52,-120,7,0|… pos=3.5
+[sites] device  id=6a848cba-… type=ctd:station_platform edge=minecraft:overworld@-52,-120,7,0|…
+```
+
+### 过程中两次「改完却等于没改」
+
+1. 第一次插入车站代码时，替换锚点没命中——**字段加上了、逻辑没进去**，
+   所以编译通过、`stations=0`。这正是「编译成功不代表改动生效」的又一例。
+2. 往 `FrameInput` 插方法时切错了边界，把 `devices_of` 的注解和方法拆开了。
+   恢复文件后改用一次精确编辑才对。
+
+两件事都指向同一条：**改完要验证「改动的效果」，而不是验证「命令没报错」。**

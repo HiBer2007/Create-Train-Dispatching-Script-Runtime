@@ -98,6 +98,49 @@ public final class FrameInput {
     public java.util.List<String> devices_of(String trainId) {
         return top.hibermod.ctdscript.facade.LiveQueries.devicesOf(trainId);
     }
+
+    /**
+     * 世界里的车站：每行 {@code [id, name, edge, position, assembling]}。
+     *
+     * <p>车站是排进路的基础——没有它，内核只能靠时刻表猜「这站是哪站」。
+     */
+    @HostAccess.Export
+    public List<List<String>> stations() {
+        List<List<String>> out = new java.util.ArrayList<>();
+        var topo = ctx.topology();
+        if (topo == null) return out;
+
+        for (var st : topo.stations()) {
+            out.add(List.of(
+                String.valueOf(st.id()),
+                st.name() == null ? "" : st.name().getString(),
+                st.edge() == null ? "" : st.edge().encode(),
+                String.valueOf(st.distance()),
+                String.valueOf(st.assembled())));
+        }
+        return out;
+    }
+
+    /**
+     * 地面设备：每行 {@code [id, typeId, edge, position, operational]}。
+     */
+    @HostAccess.Export
+    public List<List<String>> devices() {
+        List<List<String>> out = new java.util.ArrayList<>();
+        var topo = ctx.topology();
+        if (topo == null) return out;
+
+        for (var dv : topo.devices()) {
+            out.add(List.of(
+                String.valueOf(dv.id()),
+                String.valueOf(dv.typeId()),
+                dv.edge() == null ? "" : dv.edge().encode(),
+                String.valueOf(dv.position()),
+                String.valueOf(dv.operational())));
+        }
+        return out;
+    }
+
     /**
      * 这架信号机服务于哪套信号制度；未登记返回空串。
      *
