@@ -2127,3 +2127,41 @@ a9dcfa61  FIRST=GREEN  SECOND=RED  override=-  forced=false/false
 后者只能靠流程：改完代码 → 重建 → 重铺 → 重校验。
 如果以后要自动化，需要一个 `release.ps1` 把这三步串起来，并在
 `jars.json` 里记下**构建时的 git commit**，这样「包是否落后」才有判据。
+
+**把「包是否落后于源码」变成可检查的**
+
+上一轮发现发布包是旧的，但 `verify-release.ps1` 照样 PASS——
+它只校验「包内自洽」。这一轮补上了后一半：`tools/release.ps1`。
+
+| 模式 | 作用 |
+|---|---|
+| `release.ps1` | clean build 四仓库 → 重铺 jar → 重算 `jars.json`（含**每个仓库的 commit** 与构建时间）→ 跑 `verify-release.ps1` → 再跑自己 `-Check` |
+| `release.ps1 -Check` | 只比对：包里的 jar 哈希 vs `build/libs` 里当前构建的哈希 |
+
+`-Check` 是新增的判据：**包内一致**用哈希自证，**包与源码一致**必须拿两边比。
+
+### 失败路径实测过
+
+往 `ctd-web-0.3.0.jar` 末尾加一个字节：
+
+```
+FAIL  ctd-web-0.3.0.jar 与源码一致  <- 包里的 jar 落后了，跑 release.ps1 重打
+发布包落后: 1 个 jar        退出码 1
+```
+
+还原后立刻恢复 PASS。**一个不会失败的检查只是装饰**——这条规矩对发布流程同样适用。
+
+### `jars.json` 现在长这样
+
+```
+ctd-api-0.3.0.jar    dd779c3  2026-10-31 10:49:24
+ctd-host-0.3.0.jar   211acfa  2026-10-31 10:49:24
+ctd-script-0.3.0.jar df0fd6a  2026-10-31 10:49:24
+ctd-web-0.3.0.jar    8095f6b  2026-10-31 10:49:24
+```
+
+带 commit 之后，「这个包是什么时候、从哪个提交打出来的」有据可查，
+不用再靠回忆。（`ctdhost` 的 commit 是 211acfa——比其它三个新，
+因为它就是这一轮改 `aspects` 的那次提交。）
+
+重打之后的包部署回服务器，`run-acceptance.ps1` 全绿。
