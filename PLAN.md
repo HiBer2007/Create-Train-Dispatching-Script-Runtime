@@ -2626,3 +2626,47 @@ git rm -r --cached build .gradle logs
 两者叠在一起，就是这次事故。
 
 **「我只是补两行」是最容易造成大范围破坏的念头。**
+
+**B 阶段补上真机证据：重载失败可见、且不回滚**
+
+「失败不回滚」之前只有离线 `reloadTest` 14 项。这一轮在真服务端上写坏一个内核：
+
+```
+FAILED 7/8 scripts loaded
+- kernel/broken_probe.py — SyntaxError: invalid syntax @ SourceSection(...)
+  — no rollback; script kernels are not running until this is fixed
+```
+
+三件事同时被证明：**失败是可见的**、**说清了是哪个文件哪一行**、
+**明确写了不回滚**。删掉坏文件后 `reloaded 7/7`。
+
+已收进 `run-acceptance.ps1 -IncludeFailurePath`（4 项检查），默认关闭——
+它会写 config 目录，属于写操作。
+
+### 顺带：内核 id 冲突不再静默
+
+`KernelApi.register` 原先对「已存在的 id」一律 `replace`，本意是热重载换实现。
+但它分不清两件事：
+
+| 情形 | 应该 |
+|---|---|
+| 同一个脚本重载后重新注册 | 替换（正常） |
+| **另一个脚本**抢同一个 id | **报错**（早先是静默顶掉） |
+
+现在 `ScriptRuntime` 记录「当前正在执行哪个脚本」，`KernelApi` 记 id→来源；
+来源不同就抛，错误信息直接点名：
+
+```
+内核 id 冲突: demo:drive 已被 kernel/hold_all.py 注册，kernel/dup_probe.py 又想注册
+```
+
+实测：加一个抢 id 的脚本 → `FAILED 7/8`；删掉 → `reloaded 7/7`。
+
+### 又一次「先怀疑代码，其实是自己看错」
+
+这一轮开头我看到 `kernels: 5` 而 `kernel/` 目录里有 4 个文件，断定「重载留下了残留注册」。
+查下来 5 = **2 个内置内核**（`ctdweb:remote`、`ctdhost:diagnostic`）+ 3 个脚本内核。
+另外两个脚本（`signal/cbtc.py`、`hud/demo.py`）本来就不注册内核。
+
+**先看清单再下结论。** 为此新增 `/ctd host kernels`——它现在是这类问题的第一站：
+一行一个 id，比一个数字有用得多。

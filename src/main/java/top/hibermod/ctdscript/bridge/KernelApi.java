@@ -36,6 +36,9 @@ public final class KernelApi {
     /** 本进程注册过的脚本内核，供 reload 时回滚。 */
     private final List<ResourceLocation> registered = new ArrayList<>();
 
+    /** id → 谁注册的（脚本名）。用来区分「热重载换实现」和「两个脚本抢同一个 id」。 */
+    private final java.util.Map<ResourceLocation, String> owners = new java.util.HashMap<>();
+
     private KernelApi() {}
 
     @HostAccess.Export
@@ -47,11 +50,24 @@ public final class KernelApi {
 
         // 热重载：同一 id 第二次进来是「换实现」而不是「重复注册」。
         // 正常注册路径（宿主/其它模组）仍然走 DispatchKernels.register，重复即抛。
+        String source = top.hibermod.ctdscript.ScriptRuntime.currentScript();
+        String owner = owners.get(id);
+
+        // 同一个 id 被**另一个脚本**注册，不是热重载，是冲突。
+        // 早先这里一律 replace，于是后来者静默顶掉前面那个——
+        // 表现只是「注册数比文件数少一个」，没有任何线索。
+        if (owner != null && !owner.equals(source)) {
+            throw new IllegalStateException(
+                "内核 id 冲突: " + id + " 已被 " + owner + " 注册，" + source + " 又想注册");
+        }
+
         if (DispatchKernels.isRegistered(id)) {
             DispatchKernels.replace(id, () -> kernel);
+            owners.put(id, source);
         } else {
             DispatchKernels.register(id, () -> kernel);
             registered.add(id);
+            owners.put(id, source);
         }
         return id.toString();
     }

@@ -96,9 +96,28 @@ public final class ScriptRuntime implements AutoCloseable {
         startWatchdog();
     }
 
+    /**
+     * 当前正在执行的脚本名（例如 {@code kernel/hold_all.py}）。
+     *
+     * <p>用途：内核 id 冲突要能说出**是谁和谁**撞了。没有这个信息，
+     * 两个脚本抢同一个 id 时只能表现为「注册数比文件数少一个」，无从查起。
+     * 脚本按文件顺序在服务端线程上加载，所以一个静态字段足够。
+     */
+    private static volatile String currentScript = "(unknown)";
+
+    public static String currentScript() {
+        return currentScript;
+    }
+
     /** 执行一段脚本源码。 */
     public Value eval(String source, String name) {
-        return eval(Source.newBuilder("python", source, name).buildLiteral());
+        String previous = currentScript;
+        currentScript = name.startsWith("ctd/") ? name.substring(4) : name;
+        try {
+            return eval(Source.newBuilder("python", source, name).buildLiteral());
+        } finally {
+            currentScript = previous;
+        }
     }
 
     /** 执行一个已构建的 Source。 */
