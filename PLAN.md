@@ -1546,3 +1546,26 @@ train: speed=0.007 blocked=true                  ← 96 格跑完
    恰好是坏的那一种，这说明「默认值」这个概念在故障恢复里是危险品。
 
 离线验收 **23 个任务 / 265 项检查**；游戏内 `selftest` 10 项。
+
+**自检从 10 项到 11 项：兜底注入也要被验证**
+
+上一轮加了 `ScheduleRuntimeGuardMixin`，但它的存在只有两种间接证据：
+世界起得来、`swallowed` 里有计数。这两种都不能区分
+**「注入生效且数据健康」** 与 **「注入没生效但恰好没坏数据」**。
+
+所以自检加了一项 `时刻表兜底注入`：用 `@Unique` 标记方法确认注入真的落在
+`ScheduleRuntime` 上（`@Inject` 的方法体会被内联丢弃，只有 `@Unique` 能反射到）。
+
+顺带修了一个**漂移源**：`check-mod-coexistence.ps1` 里写死了
+`passCount -eq 9`。自检一加项，共存检查就误报。
+改成 `failCount -eq 0 且 passCount >= 9`——**检查项数量会变，检查结论不该跟着变**。
+
+实测（CRN + 兜底注入都在场）：
+
+```
+CTD selftest — 全部通过            11 项
+PASS  时刻表兜底注入                PASS  时刻表健康
+train : speed=0.350 target=0.350 blocked=false   ← 真车仍然能开
+```
+
+离线验收 **23 个任务 / 265 项检查**。
