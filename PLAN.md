@@ -3169,3 +3169,55 @@ ctd:station_platform  124cd422-…  (还没收到过指令)
 
 汽鸣铁道物理扳动、K4 设备行为、CRN 同时在线时的让步、客户端渲染——
 四项都在文档末尾列明原因。**一份只写「能验什么」的清单会让人误以为其余都验过了。**
+
+## K4 落地：车门接管 / 发车指示器（2026-10-31 实测）
+
+清单到手后按「先写完，再一次测」推进。这一节的每一条都有**实测输出**。
+
+### 做了什么
+
+| 项 | 实现 | 实测证据 |
+|---|---|---|
+| 车门接管 | `DoorService` 每 20 刻判定「车停稳且距站台 ≤12 格」，写进 `DoorPermissions`，再对信号模式的门执行 | `/ctd host doors` 显示 `scanned=11907 candidates=2 skippedNotSignal=1 skippedSame=1` |
+| 信号模式的门 | `SignalDoorBehaviour` 挂在门的 BE 上；`SlidingDoorBlockMixin` 拦红石与手动 | 红石通电后门仍 `open=false`；`/ctd host doors mode` 切换成功，BE NBT 里 `CtdSignalControlled:1b` |
+| 只有调度能开 | `/ctd host doors open\|close\|auto <站台坐标>`，显式优先且**不过期** | 显式开后门 `open=true`；显式关后 `open=false`；`auto` 交回自动 |
+| 车厢门 | `SlidingDoorMovementBehaviourMixin` 在 Create 的结论上再叠一层：Create 说不开就不开，Create 说开但站台未许可也不开 | mixin `require=1`，服务端启动即证明注入成功（找不到目标会崩） |
+| 发车指示器 | `DepartureIndicatorService` 把「距正点多久」逐字写到站台旁的辉光管 | `/ctd host indicator` 读回 `+` `0` `:` `0` `6` |
+| 偏差与颜色 | `lampFor`：早点绿、晚点红、正点白、未知暗（纯函数） | `k4DoorTest` 30 项；`/ctd host departures` 显示 `偏差=+0:06 颜色=LATE` |
+| 站台门指示 | `/ctd host doors` 每站显示 `doorsAllowed` | `doorsAllowed=true (显式)` / `false (自动)` |
+
+### 这一次测试抓到的五个真 bug
+
+| # | 症状 | 根因 | 为什么之前没发现 |
+|---|---|---|---|
+| 1 | 显式允许开门无效 | `DoorService.tick` 把**自动判定**传给 `applyToDoors`，没用「显式优先」的结论 | 命令输出一切正常（`doorsAllowed=true`），只有门不动 |
+| 2 | 两个服务一次都没跑 | `lastRun = Long.MIN_VALUE`，`gameTime - lastRun` **溢出成负数**，`< 周期` 永远成立 | 没有日志、没有异常，只是「什么都没发生」 |
+| 3 | 内核推了屏，命令读不到 | `BoardStore` 在空帧时清空，而契约是「不发布=保持上次」 | 空帧是常态，一次性推送立刻被抹掉 |
+| 4 | 脚本没法发 PIS | `FrameOutput` 根本没有 `board` 出口（API 有，门面没有） | 契约齐全，门面漏了一个方法 |
+| 5 | `out.board(id, json)` 用不了 | 沙箱里**没有 `json` 模块** | 假设标准库齐全 |
+
+第 2 条最值得记：**溢出型的「永远不执行」不会留下任何痕迹**。
+现在的写法是 `lastRun = -1` + `lastRun >= 0 &&` 短路，并在注释里写明原因。
+
+### 没做的部分（明确写出来）
+
+**CRN 高级显示器的两个新类型没有实现。** 原因不是难度，而是它要求：
+
+1. 实现 `IDisplaySettings`（NBT 序列化 + 设置界面）；
+2. 实现 `AbstractAdvancedDisplayRenderer` 子类（`de.mrjulsen.crn.client.ber.variants.*`）；
+3. 在**客户端**注册（`AdvancedDisplaysRegistry.register(category, name, settings, renderer, props)`）。
+
+这三步全在客户端渲染路径上，**本环境无法验证**（没有客户端、没有可视反馈）。
+按「没有可复跑证据就不算完成」的标准，我不把它写成 ✅。
+
+替代方案（已落地）：发车指示器走**原生辉光管**，服务端就能写、命令能读回，
+不依赖任何客户端代码。局限也写清了：一根管子一个字符；原生辉光管的
+「文字」与「颜色」互斥（颜色只走电脑信号那条路）。
+
+### 环境变更
+
+| 项 | 变更 | 原因 |
+|---|---|---|
+| NeoForge | 21.1.219 → **21.1.233** | 汽鸣铁道 0.3.0-beta.2 要求 `[21.1.233,)`；Create 要求 `[21.1.219,)`，两边都满足 |
+| `run/mods` | 新增 `railways-0.3.0-beta.2+neoforge-mc1.21.1.jar` | 验证 C7b 物理扳动 |
+| `libs/ponder` | `runtimeOnly` → **`compileOnly` + `runtimeOnly`** | `SmartBlockEntity` 实现 Ponder 的 `VirtualBlockEntity`，编译期碰它就要这个接口可见 |

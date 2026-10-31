@@ -249,6 +249,60 @@ public final class FrameOutput {
     }
 
     /**
+     * 发布一块 PIS 屏的**一条**发车信息。
+     *
+     * <h2>为什么是位置参数，不是 JSON</h2>
+     * 沙箱里**没有 `json` 模块**（实测 `ModuleNotFoundError: No module named 'json'`），
+     * 要求脚本自己拼 JSON 等于把标准库缺失变成 API 缺陷。所以这里用位置参数。
+     *
+     * <p>多行屏请在 Java 侧用 {@code DispatchFrame#board} 直接构造；
+     * 脚本侧这一条覆盖发车指示器与单行屏的需要。
+     *
+     * <pre>
+     * out.board("ctd:platform_1", "G1234", "北京南", 600, 720, 120, "DELAYED")
+     * </pre>
+     *
+     * @param scheduledTicks 图定还有多少 tick（未知传 -1）
+     * @param etaTicks       实时预测还有多少 tick（未知传 -1）
+     * @param delayTicks     延误（正数晚点）
+     * @param status         ON_TIME / DELAYED / EARLY / CANCELLED / SUSPENDED / DIVERTED / EXTRA
+     */
+    @HostAccess.Export
+    public void board(String boardId, String service, String destination,
+                      int scheduledTicks, int etaTicks, int delayTicks, String status) {
+        ResourceLocation id = ResourceLocation.tryParse(boardId);
+        if (id == null) {
+            dropped++;
+            env.log("warn", "ctd-script: bad board id '{}'", boardId);
+            return;
+        }
+
+        var entry = new top.hibermod.ctdapi.pis.Pis.BoardEntry(
+            service == null ? "" : service,
+            null,
+            net.minecraft.network.chat.Component.literal(destination == null ? "" : destination),
+            java.util.List.of(),
+            scheduledTicks,
+            etaTicks,
+            delayTicks,
+            null,
+            statusOf(status),
+            null,
+            top.hibermod.ctdapi.pis.Pis.Urgency.NORMAL);
+
+        frame.board(new top.hibermod.ctdapi.pis.Pis.BoardModel(id, 0L, null, java.util.List.of(entry)));
+    }
+
+    private static top.hibermod.ctdapi.pis.Pis.Status statusOf(String name) {
+        if (name == null) return top.hibermod.ctdapi.pis.Pis.Status.ON_TIME;
+        try {
+            return top.hibermod.ctdapi.pis.Pis.Status.valueOf(name.toUpperCase(java.util.Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            return top.hibermod.ctdapi.pis.Pis.Status.ON_TIME;
+        }
+    }
+
+    /**
      * 给能源联动方下指令（升弓、切供电、加注…）。
      *
      * <p>{@code payload} 原样透传，API 不解释它的结构。
