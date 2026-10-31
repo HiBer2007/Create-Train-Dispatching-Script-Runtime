@@ -1805,3 +1805,60 @@ mixin 配置打进 jar，装的形态下同样生效。开发环境的 `0.0NONE`
 
 `/ctd state show` 的即时读回、停止后磁盘文件、重启后读回——三处都验了，
 而且这次是在**有 CRN、有兜底注入、有失败登记**的当前构建上。
+
+**抓到一个真问题：C6「信号写入」在游戏里并不生效**
+
+上一轮我说「信号写入降级为离线 12 项」，这一轮想把它恢复成游戏内可验证，
+结果挖出了一个比「证据过期」严重得多的事实。
+
+### 怎么发现的
+
+写了一个探针内核，每 40 帧交替把 `ctd:clear` / `ctd:stop` 写到同一架信号机，
+再用新加的 `/ctd host aspects`（直接读 `SignalBoundary.cachedStates`）读回：
+
+```
+写入: ctd:stop -> 3bbf72fe/FIRST (#1)
+读回: 3bbf72fe  FIRST=GREEN  SECOND=RED      ← 仍然是 clear 对应的绿
+```
+
+连续采样 6 次（1.2 s 间隔），`FIRST` 始终 `GREEN`，**没有一次翻转**。
+
+### 原因（代码位置明确）
+
+`SignalBoundary#tickState` 每个 tick 都会重算 `cachedStates`：
+
+- 我们的 `SignalApplier` 写的就是 `cachedStates`；
+- 但 Create 下一帧就用占用/预定把它重新算一遍；
+- 所以我们的写入**只在当帧有效**，随后被覆盖。
+
+`SignalBoundaryMixin` 目前只做「信号制度」的 NBT/网络同步，**完全没有拦 `tickState`**。
+
+### 为什么离线测试没抓到
+
+`signalApplierTest` 的 12 项测的是 `writeState` / `readState` 的往返——
+在一个**没挂到图上、不会 tick** 的 `SignalBoundary` 实例上。
+那个实例没有 `tickState` 来覆盖它，所以永远通过。
+
+这正是「测试输入与真实输入不一致」的老毛病：
+`reloadTest` 绕开了 `block/`、`hud/`；这次是**绕开了 tick**。
+
+### 状态更正
+
+| 项 | 之前 | 现在 |
+|---|---|---|
+| C6 信号写入 | ✅（离线 12 项） | 🟡 **写入会被 Create 每帧覆盖，游戏内不生效** |
+
+### 修法（下一轮）
+
+在 `SignalBoundary#tickState` 上注入：当宿主对这条边界有「我方灯色」时，
+写入并以 `cancellable` 阻止 Create 重算。要做对必须同时处理：
+
+1. 两面的独立性（一条边界两面各自的 group）；
+2. 没有我方灯色时**必须**放行原版（否则等于整体接管，动静大得多）；
+3. 与 `scene` 里 `SignalState.INVALID` 的语义共存。
+
+### 这一轮的新工具留下了
+
+`/ctd host aspects` 是**实时**读 `cachedStates` 的命令（拓扑镜像是重建快照，
+不能用来验证写入）。它现在是判断「信号写入是否生效」的唯一可复跑手段——
+也正是它让这个 bug 暴露出来。
