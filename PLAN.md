@@ -2165,3 +2165,34 @@ ctd-web-0.3.0.jar    8095f6b  2026-10-31 10:49:24
 因为它就是这一轮改 `aspects` 的那次提交。）
 
 重打之后的包部署回服务器，`run-acceptance.ps1` 全绿。
+
+**用刚打的发布包复验「安装形态」：新 mixin 从 jar 里也生效**
+
+上一轮重建了发布包，但**没有再用它跑一次安装测试**。
+而这一轮新增的 `SignalBoundaryTickStateMixin` 恰好是「打包后才可能失效」的那类东西：
+它写在 jar 内的 `ctdhost.mixins.json` 里，开发环境从 `build/classes` 加载时永远是对的。
+
+测法同前（注释 `mods{}`、把四个 jar 放进 `run/mods`）：
+
+| 检查 | 结果 |
+|---|---|
+| 四个模组识别 | `API / Host / Script Runtime / Web Bridge 0.3.0` |
+| selftest | **12 项全过**，含 `灯色接管注入` |
+| `run-acceptance.ps1` | 全绿 |
+| 版本号 | 全是 `0.3.0`（不是 `0.0NONE`） |
+
+**关键就是 `灯色接管注入` 这一项**：它用 `@Unique` 标记方法证明 mixin 真的落在
+`SignalBoundary` 上。在 jar 形态下这一项 PASS，等于证明
+「打包 → 装 → 生效」这条链没有断。
+
+测完还原（`build.gradle` 恢复、`run/mods` 恢复两个 jar），开发环境自检仍 12 项全过。
+
+### 为什么这条值得每轮重跑
+
+「开发环境能跑」与「装上去能跑」是两条不同的链路：
+前者从 `build/classes` 加载、没有 manifest、mixin 配置直接从源码目录读；
+后者从 jar 加载、版本号来自 manifest、mixin 配置从 jar 内读。
+这条链上任何一环出错，开发环境都发现不了。
+
+代价是每次约 6 分钟（改配置 → 启动 → 验 → 还原 → 再启动）。
+对发布前的批次值得，对每次改代码不值得——所以它是「发版前」的步骤，不是每轮的步骤。
