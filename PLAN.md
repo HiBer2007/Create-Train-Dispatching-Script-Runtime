@@ -40,7 +40,7 @@
 | 外部进程驱动 | `speed=0.300 blocked=false` | `ctdweb/tools/driving_client.py` |
 | 模组共存 | 十项全过 | `tools/check-mod-coexistence.ps1 -JarPatterns <名字>` |
 | 静默失败 | `swallowed: none` | `/ctd host status` |
-| 服务端侧验收 | **19 项**（`-IncludeFailurePath` 27 项、`-IncludeDriving` +2） | `tools/run-acceptance.ps1` |
+| 服务端侧验收 | **22 项**（`-IncludeFailurePath` 29 项、`-IncludeDriving` +2） | `tools/run-acceptance.ps1` |
 | 灯色写入 | 持久 + 红灯不放宽 | `/ctd host aspects` 显示 `takeover=true` |
 
 ### 仍需外部输入
@@ -3249,3 +3249,30 @@ ctd:station_platform  124cd422-…  (还没收到过指令)
 |---|---|---|
 | K4 平台设备 | 🟡 地基完成、行为待清单 | 🟡 **车门接管与发车指示器已实现并实测**；站台屏幕（CRN 两个新显示器类型）未实现，原因见上 |
 | C7b 道岔物理扳动 | 🟡 代码在、未验（缺 jar） | 🟡 代码在、**路径已通**（汽鸣铁道在场），缺一次真机放置道岔 |
+
+### K4 的三条命令进了自动验收（19 → 22 项）
+
+新命令如果只在我手里跑过，就等于没有回归保护。补三条检查：
+
+```
+PASS  车门接管可查询      /ctd host doors 必须给出「合计 N 站」
+PASS  发车指示可查询      /ctd host departures 必须给出数据，或明确说「还没有 PIS」
+PASS  指示器可查询        /ctd host indicator 必须给出「应显示=…」
+```
+
+第三条的判据刻意宽松（只要 `应显示=`），因为它验的是**命令能回答**，
+不是「内容一定对」——内容对不对由 `k4DoorTest` 的 30 项离线断言负责。
+**命令可用性与逻辑正确性是两件事，用两种检查分别盯。**
+
+实测计数（数出来的）：
+
+```
+默认验收:     PASS=22
+含失败路径:   PASS=29
+```
+
+### 一个自我提醒
+
+我第一版把函数名写成了 `Send-Rcon`，脚本跑到那里直接退出、退出码 1，
+但**前面 19 项全是 PASS**——如果只看「跑完了」，会以为一切正常。
+退出码才是结论，输出好看不是。
