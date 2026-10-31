@@ -2962,3 +2962,29 @@ PASS  区段已收录
 
 现在它们各有一条自检，判据都是「拓扑里的数量 vs 世界里的数量」，
 所以将来再出现「没人填」，自检会直接红。
+
+**发布包重打 + jar 形态复验（拓扑补全之后）**
+
+宿主与脚本这四轮都改过（车站/设备/岔口/区段进拓扑、`FrameInput` 新增两个方法），
+所以发布包必须重打并重新验安装形态。
+
+```
+release.ps1          四个 jar 与源码一致
+jar 形态启动           API / Host / Script Runtime / Web Bridge 全 0.3.0
+/ctd selftest        18 项全过
+/ctd host status      stations=3 devices=3 switches=5 sections=917
+run-acceptance.ps1   全绿
+```
+
+`stations/devices/switches/sections` 在 **jar 形态下也全部非空**——
+这比「开发环境里非空」有意义得多：jar 里的 mixin 配置、类加载顺序、
+注册时机都不同，拓扑补全若依赖开发环境的加载顺序，这里就会露馅。
+
+### 又一次「改配置文件踩坑」
+
+给 `build.gradle` 加安装测试注释时，注释行被插进了一个多余的 `'`，
+Gradle 直接报 `Unexpected character: '\''`。**改构建脚本的错误是响亮的**
+（不像改 `.gitignore` 那次静默吞掉 129 个文件），但代价是每次都要重启验证。
+
+测完已还原：`build.gradle` 恢复 `mods {}`、`run/mods` 恢复两个 jar，
+开发环境自检仍 18 项全过。
