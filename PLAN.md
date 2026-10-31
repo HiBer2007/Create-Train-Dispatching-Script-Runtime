@@ -2599,3 +2599,30 @@ runtime.tick(null)       →  正常返回
 **「两个数字不一致」先问「它们是不是同一时刻的」**，再怀疑代码。
 这次差点写下一个「桥接遥测过期」的结论——那会把一个正常组件标记成坏的，
 比漏掉一个真 bug 更麻烦：以后没人信它的输出。
+
+**一次 `git add -A` 差点把 129 个构建产物提交进仓库**
+
+清 `__pycache__` 时我用 `Set-Content .gitignore` **覆盖**了 ctdweb 原有的 `.gitignore`，
+然后 `git add -A` —— 把 `build/`、`.gradle/`、`logs/` 一起提交了（129 个文件，
+含 60+ 个日志压缩包和 NeoForge 反编译产物）。
+
+发现得早（同一分钟内 `git ls-files` 就露出来了），两步修掉：
+
+```
+git rm -r --cached build .gradle logs
+.gitignore = .gradle/ build/ logs/ run/ __pycache__/ *.pyc
+```
+
+现在四个仓库都干净：`ctdapi 81 / ctdhost 102 / ctdscript 142 / ctdweb 38`，
+误跟踪 0。
+
+### 这条的教训比它看起来重要
+
+`Set-Content` 是**覆盖**，不是追加。我本想「补两行」，实际把原来的规则全删了。
+写配置文件时的正确做法是先读、再改、再写——和改 Java 一样，
+只不过配置文件没有编译器替我报警。
+
+而 `git add -A` 在有 `.gitignore` 时是安全的，在**没有**时会把整个构建目录吞进去。
+两者叠在一起，就是这次事故。
+
+**「我只是补两行」是最容易造成大范围破坏的念头。**
