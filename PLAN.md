@@ -3652,3 +3652,35 @@ mixin 只注册在 `ctdhost.mixins.json` 的 `client` 段，只在客户端加�
 要验多格，必须用物品放置 + GUI 拉大——这需要真实的物品使用与鼠标交互。
 
 这条同时说明：**单格能画、多格画不出，不构成「渲染器坏了」的证据**。
+
+### 信号管颜色：改用**预着色贴图**（用户要求）
+
+读了 Create 的 `NixieTubeRenderer.renderAsSignal`，官方做法是：
+
+```java
+CachedBuffers.partial(first ? SIGNAL_RED_GLOW : yellow ? SIGNAL_YELLOW_GLOW : SIGNAL_WHITE_GLOW, state)
+    .light(0xf000f0).disableDiffuse()
+    .scale(...)
+    .renderInto(ms, buffer.getBuffer(RenderTypes.additive()));
+```
+
+**三张已经带颜色的贴图 + 加法混合**，不是染色。
+
+我们先前是「白管贴图 × RGB + 加法」——白色 RGB 接近 1，乘完仍然很亮，
+加法叠上去就发白、发粉。**这就是颜色不对的根因。**
+
+### 现在的做法
+
+| 件 | 位置 |
+|---|---|
+| 贴图 | `assets/ctdhost/textures/block/signal_glow_{red,yellow,white,green,blue}.png`（16×16 径向渐变，程序生成） |
+| 模型 | `assets/ctdhost/models/block/signal_glow_{color}.json`（16³ 方块，渲染时缩放成管形） |
+| 代码 | `client/CtdPartialModels`：颜色名 → `PartialModel` |
+| 渲染 | mixin 里按灯色选模型，**不再 `.color(tint)`** |
+
+管身仍用 Create 的 `SIGNAL_WHITE_CUBE`（半透明玻璃），辉光用我们的贴图。
+
+### 还没验的部分
+
+世界里两台信号机当前 `override=-`（没有内核写 aspect），所以我们的渲染分支根本没进——
+管子显示的是 Create 原生红绿。**要看到我们的颜色，必须先把 aspect 写进去。**
