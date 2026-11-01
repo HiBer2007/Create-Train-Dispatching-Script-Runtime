@@ -3773,7 +3773,9 @@ CachedBuffers.partial(AllPartialModels.SIGNAL_WHITE_CUBE, blockState)
 | K5-2a | blockstate + 占位模型（复用 Create 的 track_signal 模型） | ✅ 已完成 |'
 '| K5-4 | 灯头方块（地面/高杆/吊顶/墙壁）+ 金属梁段 | ✅ 注册完成（模型待细化） |
 '| K5-4b | 灯头 BE：每秒找信号机、记下语义 | ✅ 完成 |
-| K5-4c | 灯面渲染（自绘两个发光小方块） | ✅ 完成，待进游戏验色 |''
+'| K5-4c | 灯面渲染 | ✅ 改为**模型驱动**：64×80 图集 + UV 取块 + 荧光晕层 |
+| K5-4d | 荧光（glow） | ✅ 模型内叠加半透明光晕 + `render_type: translucent` |
+| K5-4e | 金属梁 | ✅ 改用 `create:metal_girder`，自造梁已删 |'''
 | K5-5 | 金属梁向上传递状态 | 🟡 查找逻辑完成（SignalHeadLamps），灯头 BE 待接 |
 | K5-6 | 与 `SignalStates` 对接，替换掉 nixie tube mixin | 待做 |
 | K5-7 | 进游戏实测 + 文档 | 待做 |
