@@ -3865,3 +3865,38 @@ public class SimpleSignalBlockEntity extends SignalBlockEntity { ... }   // ← 
 1. 画一张 64×64 图集（灯罩、灯芯、杆、底座各占一块）
 2. 灯芯单独成一个 partial model，用加法混合画（这就是「荧光」）
 3. 主体模型按 UV 取块，不再整面铺色
+
+## K5-架构更正（用户指出，2026-11-01）
+
+我把**信号机方块**和**显示件**混为一谈了。正确分工：
+
+| 件 | 职责 | 参照 |
+|---|---|---|
+| **信号机方块** `ctd_signal` | 只管**绑定轨道 + 提供信号能力**，自己**不显示** | Create 原生列车信号机 |
+| **地面信号机** | 显示件，装在信号机方块**上** | 辉光管 / 扳臂信号机 |
+| **高杆信号机** | 显示件，装在 **Create 的金属梁**（`create:metal_girder`）上，梁可叠多节 | 同上 |
+| **挂壁信号机** | 显示件，装在信号机方块**侧面**（隧道） | 同上 |
+| **吊顶信号机** | 显示件，装在信号机方块**下方**（隧道） | 同上 |
+
+**金属梁是机械动力的 `create:metal_girder`**，不是我先前自己注册的 `ctd_signal_mast`——
+那个方块是多余的，应当删掉。
+
+### 关键实现发现：汽鸣铁道用 DisplayLink，不靠扫描
+
+`Railway-1.21.1/.../semaphore/SemaphoreDisplayTarget.java:34`
+
+```java
+public class SemaphoreDisplayTarget extends DisplayTarget { ... }
+```
+
+扳臂信号机通过 **Create 的 `DisplayTarget` / `DisplayLink`** 与信号机建立关联，
+**不是**每 tick 去扫描周围方块找信号机。我先前写的 `SignalHeadLamps.findSignal`
+（向下/向上/水平各扫 24 格）是**错的方向**：它假设了空间相邻，而 Create 的显示链接
+允许跨越任意距离。
+
+### 修正后的方案
+
+1. 删掉 `ctd_signal_mast`（用 Create 的金属梁）
+2. 四种显示件都做成 `DisplayTarget` 的承载方块，靠 DisplayLink 绑定信号机
+3. 显示件的灯用**辉光管式绘制**：partial model + 亮色贴图 + 加法混合荧光层
+4. `SignalHeadLamps.findSignal` 保留但不再作为主路径（只在未链接时兜底）
