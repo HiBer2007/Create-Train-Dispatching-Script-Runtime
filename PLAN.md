@@ -3684,3 +3684,34 @@ CachedBuffers.partial(first ? SIGNAL_RED_GLOW : yellow ? SIGNAL_YELLOW_GLOW : SI
 
 世界里两台信号机当前 `override=-`（没有内核写 aspect），所以我们的渲染分支根本没进——
 管子显示的是 Create 原生红绿。**要看到我们的颜色，必须先把 aspect 写进去。**
+
+### 「缺失 aspect」的真正原因：side 写错了
+
+探针内核先写的是 `out.aspect(id, "front", ...)`，日志里出现：
+
+```
+[ctdhost/warn] ctd-script: bad side 'front' for signal a9dcfa61-...
+```
+
+`Topology.SignalSide` 只有 **FIRST / SECOND** 两个值。写错的值被**丢弃**——
+丢弃只留一行 warn 与一个 `dropped` 计数，命令本身看起来「成功」。
+这就是 aspect 缺失的原因：**不是没写，是写了但被拒。**
+
+改成 `first` / `second` 之后：
+
+```
+[aspect] 3bbf72fe first=ctd:clear second=ctd:stop
+[aspect] 3bbf72fe first=ctd:cbtc_mode second=ctd:approach
+```
+
+没有 warn，说明已经进了 `SignalStates`。
+
+### 顺带澄清两个「override」不是一回事
+
+| 名字 | 含义 | 谁写 |
+|---|---|---|
+| `SignalStates` | 语义 id（`ctd:clear` 等），**辉光管按它上色** | `out.aspect(...)` |
+| `SignalOverrides` | 灯色接管意图（把 Create 的红/绿改成什么） | `SignalBoundaryTickStateMixin` 那条路 |
+
+`/ctd host aspects` 的 `override=` 列读的是后者，所以写 aspect 之后它仍然是 `-`。
+**别把它当成「aspect 没写进去」的证据**——两回事。
