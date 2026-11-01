@@ -3782,3 +3782,41 @@ CachedBuffers.partial(AllPartialModels.SIGNAL_WHITE_CUBE, blockState)
 - 改走 `computerSignal` → 洋红消失、能画出彩色管，但**信号机上的管子状态归属仍在 Create 手里**，
   重启后先原生、刷新后全灭
 - 结论：**不要再往这条路上投入**
+
+### K5-1 设计定稿：继承 Create 的 SignalBlockEntity
+
+读了 `refs/KuaYue/.../signal/simple/SimpleSignalBlock.java`：
+
+```java
+public class SimpleSignalBlock extends Block implements IBE<SimpleSignalBlockEntity> { ... }
+public class SimpleSignalBlockEntity extends SignalBlockEntity { ... }   // ← 关键
+```
+
+**跨越的做法不是另起一套信号系统，而是继承 Create 的 `SignalBlockEntity`**，
+于是 `TrackTargetingBehaviour`、`SignalBoundary`、红石强制红、链式解析全部照旧，
+只换方块外观与渲染。这正是我们要的形态。
+
+#### 方块家族
+
+| 方块 | 父类 | 说明 |
+|---|---|---|
+| `ctd_signal` | `SignalBlock` | 信号机本体，承载 Create 的边界与朝向 |
+| `ctd_signal_head_ground` | `Block` + BE | 地面灯头，放在 `ctd_signal` 上 |
+| `ctd_signal_head_mast` | 同上 | 高杆灯头，放在金属梁顶 |
+| `ctd_signal_head_ceiling` | 同上 | 吊顶灯头，放在下方 |
+| `ctd_signal_head_wall` | 同上 | 墙壁灯头，放在侧面 |
+| `ctd_signal_mast` | `Block` | 金属梁段，可叠；把状态向上传 |
+
+#### 状态传递
+
+灯头 BE 每 N 刻向下/向上找 `ctd_signal` 的 BE，读 `SignalStates.get(boundaryId)`，
+再按语义选灯色。梁段只负责「连通」，本身不存状态——
+**状态永远只有一份，在信号机本体上**，这样不会出现「重启后两份状态不一致」。
+
+> 这一条直接来自魔改 nixie tube 的教训：状态归属不能有两份。
+
+#### 与现有代码的关系
+
+- `SignalStates`（ctdapi）继续作为唯一语义来源
+- `NixieTubeRendererMixin` 的接管逻辑**保留但不启用**（加开关），避免回归
+- 新增 `client/CtdSignalRenderer` 画四种灯头的灯
