@@ -3769,7 +3769,8 @@ CachedBuffers.partial(AllPartialModels.SIGNAL_WHITE_CUBE, blockState)
 |---|---|---|
 | K5-1 | 设计方块家族与 NBT（信号机方块 + 灯头 + 梁段） | 待做 |
 | K5-2 | 建模：灯头（地面/高杆/吊顶/墙壁四种朝向） | 待做 |
-| K5-3 | 注册方块与方块实体 | ✅ 已完成（复用 Create 的 TRACK_SIGNAL BE） |
+'| K5-3 | 注册方块与方块实体 | ✅ 已完成（自己的 BE 类型，实测可放置） |
+| K5-2a | blockstate + 占位模型（复用 Create 的 track_signal 模型） | ✅ 已完成 |'
 | K5-4 | 渲染：按 CTD 语义上色（红/黄/绿/蓝/白 + 组合） | 待做 |
 | K5-5 | 金属梁向上传递状态 | 待做 |
 | K5-6 | 与 `SignalStates` 对接，替换掉 nixie tube mixin | 待做 |
