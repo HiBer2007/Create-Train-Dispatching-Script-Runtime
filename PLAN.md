@@ -3543,3 +3543,49 @@ jar 里这个值是**对的**（`Implementation-Version: 0.4.0`），所以玩�
 
 `fixedThrown=0` 是**正确的**：世界里没有 `railways:switch` 边点，
 所以「扳」这个动作无处可落。等玩家放了道岔，这个数会开始变。
+
+## 辉光管颜色：终于找对了地方（用户指出）
+
+用户报「信号机上的辉光管仍然没有正确显示为 CBTC 信号颜色」，并提示：
+**去看机械动力官方怎么显示颜色，不只是代码，还有材质包与模型层面**；
+并指出汽鸣铁道有个内置资源包能改辉光管在列车信号模式下的颜色。
+
+### 查证结果
+
+| 层 | 事实 |
+|---|---|
+| 代码 | `NixieTubeRenderer.renderSafe`：有 `signalState`/`computerSignal` 时走 `renderAsSignal`（画**发光面板**，不是文字） |
+| 材质 | 信号模式的颜色来自 `AllPartialModels.SIGNAL_PANEL` 与 `signal_glow.png` / `signal_glow_2.png` |
+| 资源包 | S&R 的 `resourcepacks/green_signals` 换的正是这两张 `signal_glow*.png` —— **颜色在贴图里** |
+| **普通文字模式** | `DyeColor color = NixieTubeBlock.colorOf(state)`，再 `DyeHelper.getDyeColors(color)` → 文字亮/暗色 |
+
+也就是说：**辉光管不是「一个方块多种颜色」，而是按染料分方块**（`create:red_nixie_tube`、`green_nixie_tube`……）。
+文字颜色跟着方块走；而信号模式的颜色跟贴图走，两者是两条不同的路。
+
+### 修法
+
+`DepartureIndicatorService` 现在按灯色**换方块**：
+
+| 灯色 | 方块 |
+|---|---|
+| 早点 | `create:green_nixie_tube` |
+| 晚点 | `create:red_nixie_tube` |
+| 正点 | `create:white_nixie_tube` |
+| 未知 | 不改 |
+
+**顺序很重要**：换方块会重建方块实体，所以必须**先换色再写字**；反过来文字会丢。
+
+### 实测
+
+```
+晚点 +0:06 → 管子变成 create:red_nixie_tube   ✓
+早点 -0:06 → 管子变成 create:green_nixie_tube ✓
+```
+
+### 这条踩坑的教训
+
+我先前用 `computerSignal.first.rgb` 去设颜色，还写文档说「辉光管的文字与颜色互斥」——
+**那个结论是错的**。真正互斥的是「文字模式」与「信号模式」两条渲染路径，
+而文字模式本来就有颜色，只是颜色来自**方块本身**。
+
+**「在代码里找不到就去看资源」**——颜色可以藏在贴图里，这在 Minecraft 模组里很常见。
