@@ -3715,3 +3715,26 @@ CachedBuffers.partial(first ? SIGNAL_RED_GLOW : yellow ? SIGNAL_YELLOW_GLOW : SI
 
 `/ctd host aspects` 的 `override=` 列读的是后者，所以写 aspect 之后它仍然是 `-`。
 **别把它当成「aspect 没写进去」的证据**——两回事。
+
+### 管身也画错了：加法白会把颜色冲成白
+
+再读一遍 Create 的 `renderAsSignal`，管身（`SIGNAL_WHITE_CUBE`）是：
+
+```java
+CachedBuffers.partial(AllPartialModels.SIGNAL_WHITE_CUBE, blockState)
+    .light(0xf000f0).disableDiffuse()
+    .scale(...)
+    .renderInto(ms, buffer.getBuffer(RenderType.translucent()));   // ← 半透明，不是加法
+```
+
+我们之前把管身也丢进 `RenderTypes.additive()`。**白色管身加法叠加，等于在灯的位置加了一大块白光**，
+无论辉光贴图是什么颜色都会被冲成白。这是「颜色不对」的第二个、也是更直接的原因。
+
+已改为 `RenderType.translucent()` + `light(0xf000f0)`，与官方一致。
+
+| 层 | 官方 | 我们（改前） | 我们（改后） |
+|---|---|---|---|
+| 管身 | translucent + 全亮 | **additive** | translucent + 全亮 |
+| 辉光 | 预着色贴图 + additive | 白贴图 × tint + additive | **预着色贴图** + additive |
+
+两条都对齐之后，颜色才可能对。
