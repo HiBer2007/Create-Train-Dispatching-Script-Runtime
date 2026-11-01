@@ -3823,3 +3823,45 @@ public class SimpleSignalBlockEntity extends SignalBlockEntity { ... }   // ← 
 - `SignalStates`（ctdapi）继续作为唯一语义来源
 - `NixieTubeRendererMixin` 的接管逻辑**保留但不启用**（加开关），避免回归
 - 新增 `client/CtdSignalRenderer` 画四种灯头的灯
+
+## K5-2：汽鸣铁道的信号机为什么好看（照着抄结构，不抄贴图）
+
+读了 `Railway-1.21.1/src/main/resources`：
+
+```json
+// assets/railways/models/block/semaphore/white_lamp.json
+{
+  "texture_size": [64, 64],
+  "textures": { "5": "railways:block/semaphore", "particle": "create:block/girder" },
+  "elements": [
+    { "name": "cube white", "from": [-1,-2,-2], "to": [1,2,2],
+      "faces": { "north": {"uv": [0, 6.5, 0.5, 7.5], "texture": "#5"}, ... } }
+  ]
+}
+```
+
+三条关键做法：
+
+| 做法 | 说明 |
+|---|---|
+| **一张 64×64 图集** | `railways:block/semaphore` 一张贴图，灯、臂、杆全在里面 |
+| **UV 精确取块** | 灯芯只取 `[0,6.5]~[0.5,7.5]` 这一小块，不是整张 16×16 |
+| **模型拆成多个变体** | `block.json` / `block_full.json` / `*_flipped.json` / `*_down.json` —— 臂的位置各有模型 |
+
+而灯芯 `white_lamp` 是**独立的小立方体**（`-1..1 × -2..2 × -2..2`），
+和主体分开渲染，所以能单独发亮。
+
+### 我们现在的差距
+
+| 项 | 我们 | 汽鸣铁道 |
+|---|---|---|
+| 贴图 | 6 张 16×16 小图 | **1 张 64×64 图集** |
+| UV | 整面铺满 | **精确取块** |
+| 灯芯 | 和灯罩同一个模型 | **独立小立方体** |
+| 变体 | 8 个 aspect 各一份 | 结构变体（臂位/翻转） |
+
+### 下一步
+
+1. 画一张 64×64 图集（灯罩、灯芯、杆、底座各占一块）
+2. 灯芯单独成一个 partial model，用加法混合画（这就是「荧光」）
+3. 主体模型按 UV 取块，不再整面铺色
