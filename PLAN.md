@@ -407,7 +407,7 @@ L1 (标志进镜像) ──► L2 (区间限速) ──► L3 (脚本动作)
 | C | C3c 脚本可见 `ctx.stations()` / `ctx.devices()` | ✅ | 内核实测输出 `[sites] stations=3 devices=3`；`/ctd host devices` 列出设备与指令对照 |
 | C | K4 车门接管 + 发车指示器 | ✅ | 车门：`/ctd host doors` 计数 + 红石/手动被拦 + 显式开关实测；指示器：`/ctd host indicator` 读回 `+0:06`；离线 `k4DoorTest` 30 项 |
 | C | 自动道岔机（`ctdhost:switch_machine`） | ✅ | 放置绑定 8 格内岔口；`/ctd host machines` 列出机器与固定方向；无机器岔口的锁被拒绝（实测 `holder=11` 接受 / 无机器被拒）；`fixedRouteTest` 11 项 |
-| C | 站台屏两个 CRN 显示类型 | 🟡 代码已写、无视觉证据 | `ctd_platform` / `ctd_departure`：设置类 + 两个渲染器 + 客户端注册 + 读 `getStops()` 实时车次；编译通过、服务端不受影响；**没有客户端，没见过屏幕上的样子** |
+| C | 站台屏两个 CRN 显示类型 | 🟡 单格已验证、多格未通 | 截图确认 `ctd_platform` 显示「(未设车站)+车次(绿)」、`ctd_departure` 显示「--:--」；多格需物品放置+GUI 拉大，`/fill` 拼不出控制器 |
 | C | C4 遥测：速度 / 位置 / **里程** / **车载制度** | ✅ | `routeOdometerTest` 6 项：有符号累加、多车独立、prune 清理 |
 | C | C4b 遥测：进路状态 `route` | ✅ | `routeOdometerTest` 11 项：剩余长度、岔口合并、撤销、id 稳定、未知边忽略 |
 | C | C4c 遥测：能源样本 `energy` | ✅ | 走 `Interop.sampleEnergy()` 聚合已注册的提供方；一个都没有时返回 `UNKNOWN` 并在 `/ctd host status` 注明「没有联动方，列车照常运行」 |
