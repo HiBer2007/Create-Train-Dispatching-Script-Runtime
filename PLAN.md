@@ -4069,3 +4069,25 @@ out.hold("北京南", "1", False)    # 解除
 
 **注意**：`SignalRendererMixin` 现在承担着 `CtdDisplayTypes.registerAll()` 的启动职责，
 删它会连带让站台屏类型消失——这一点在删辉光管 mixin 时已经踩过一次。
+
+### K6-12：轨道设备的放置逻辑（用户指出的正解）
+
+**所有 Create 轨道设备共用一套逻辑**——列车站点、信号机、汽鸣铁道的道岔扳道机都一样：
+
+```
+拿着物品 → 右键轨道 → 轨道上出现一块「板子」标出将要绑定的位置 → 放下 → 方块与轨建立 TrackTargetingBehaviour
+```
+
+实现入口：`com.simibubi.create.content.trains.track.TrackTargetingBlockItem`
+
+```java
+public class TrackTargetingBlockItem extends BlockItem {                 // :51
+    public TrackTargetingBlockItem(Block pBlock, Properties pProperties, EdgePointType<?> type) {   // :60
+```
+
+所以我们先前的 `ctd_signal` 用 `registerSimpleBlockItem`（普通 `BlockItem`）是**根本原因**：
+它只会把方块放在点击位置，不会产生轨道绑定，也不会有「板子」预览。
+
+已改为 `CtdSignalItem extends TrackTargetingBlockItem`，边点类型用 `EdgePointType.SIGNAL`。
+
+**这段逻辑同样适用**于将来的其它轨道设备（比如若要做自己的站点/道岔机），一律继承这个 item。
