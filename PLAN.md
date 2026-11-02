@@ -4055,3 +4055,17 @@ out.hold("北京南", "1", False)    # 解除
    导致文件截断或语法错误十几次。**结论：Java 文件一律整文件重写或用 edit 工具。**
 2. **改了 API 却忘了刷 jar**：`ctdscript` / `ctdhost` 依赖 `libs/` 里的本地 API jar，
    `publishToMavenLocal` 无效，必须 `gradlew jar` 后手工覆盖。
+
+### K6-11：信号机 mixin 逐个核对（不删的也要有理由）
+
+| mixin | 作用 | 处置 |
+|---|---|---|
+| `NixieTubeRendererMixin` | 接管辉光管灯色 | **已删除**（改模型驱动后无用） |
+| `SignalRendererMixin` | 给 Create 信号灯上色；**同时承载客户端注册静态块** | 保留（注册挂在它上面） |
+| `SignalBoundaryMixin` | 给 `SignalBoundary` 加 `signalSystem` 字段 + NBT | 保留（CBTC 归属靠它） |
+| `SignalBoundaryTickStateMixin` | 把 override 写进 `cachedStates` | 保留（Create 原生灯色仍要改） |
+
+结论：除辉光管那个之外，其余三个**都还有实际作用**，不能因为「名字里有 Signal」就删。
+
+**注意**：`SignalRendererMixin` 现在承担着 `CtdDisplayTypes.registerAll()` 的启动职责，
+删它会连带让站台屏类型消失——这一点在删辉光管 mixin 时已经踩过一次。
