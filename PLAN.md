@@ -4028,3 +4028,30 @@ out.hold("北京南", "1", False)    # 解除
 | C | 并入 `BoardStore` | 取决于它是否已同步 |
 
 下一步按 A 做：服务端写方块状态 → `BERCtdHold` 读状态 → 端到端可用。
+
+### K6-10：扣车端到端打通（2026-11-01）
+
+链路：
+
+```
+内核 out.hold("北京南","1",true)
+  → ctdapi HoldStates.put(...)                 （服务端静态表）
+  → 显示器 BE 每 tick 自查自己的车站/站台      （AdvancedDisplayHoldMixin）
+  → 命中则写 ctdHold 字段 + setChanged + 发包
+  → getUpdateTag 带上 CtdHold
+  → 客户端 BERCtdHold 读 acc.ctdgetHold() → 红色「扣车 · 北京南」
+```
+
+**为什么这样是对的**：CRN 的 `AdvancedDisplayBlockEntity` 本来就把要显示的数据存在 BE 上
+（`NBT_TRAIN_STOPS` 那种），靠 BE 的存档与同步 tag 送到客户端。我们照同一个位置加字段，
+就自动继承了这套同步——不需要自造方块，也不需要自己发包。
+
+**关键设计**：显示器**自己**按设置的「车站 + 站台」去查扣车，而不是宿主扫描世界里的显示器。
+这样不依赖区块是否加载，也没有全局扫描开销。
+
+### 这个会话里反复出现的两个自伤
+
+1. **用 PowerShell 逐行改 Java**：`$done=false` 被当命令执行、三引号插游离 `'`，
+   导致文件截断或语法错误十几次。**结论：Java 文件一律整文件重写或用 edit 工具。**
+2. **改了 API 却忘了刷 jar**：`ctdscript` / `ctdhost` 依赖 `libs/` 里的本地 API jar，
+   `publishToMavenLocal` 无效，必须 `gradlew jar` 后手工覆盖。
