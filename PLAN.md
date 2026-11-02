@@ -3930,3 +3930,24 @@ public class SemaphoreDisplayTarget extends DisplayTarget { ... }
 - **F2 截图**（`run/screenshots/`）比桌面抓屏可靠，不受窗口焦点影响。
 - **方块/物品注册改动必须重启服务端**，否则客户端因注册表不一致被踢，之后看到的是断线旧画面。
 - **不要对玩家的角色用 `/tp`**——用户可能正在别的车上。
+
+### K6：PIS 改用 CRN 高级显示器（模型/渲染停止投入）
+
+用户决定：**不再做新的美术与模型**，PIS 的正点计时与扣车指示改用 CRN 高级显示器。
+
+| 步 | 内容 | 状态 |
+|---|---|---|
+| K6-1 | 删除 `NixieTubeRendererMixin`（291 行），`client` 段只剩 `SignalRendererMixin` | ✅ |
+| K6-2 | 客户端注册（站台屏类型 + 灯头渲染器）改挂到 `SignalRendererMixin` 静态初始化 | ✅ |
+| K6-3 | 新增显示类型 `ctd_timer`（正点计时，复用 `BERCtdDeparture`） | ✅ |
+| K6-4 | 新增显示类型 `ctd_hold`（扣车，暂复用 `BERCtdPlatform`） | ✅ |
+| K6-5 | 两个新类型都绑定「车站 ID + 站台 ID」（`CtdPlatformSettings` 的 station/platform 字段） | ✅ |
+| K6-6 | `ctd_hold` 专属渲染（扣车红底大字） | ⏳ |
+| K6-7 | `DepartureIndicatorService` 不再写辉光管，改为写 `ctd_timer` | ⏳ |
+
+**注**：先删辉光管 mixin 时踩到一个隐蔽回归——`CtdDisplayTypes.registerAll()`
+原本挂在那个 mixin 的静态初始化里，删掉就没人调用了，站台屏类型会全部消失。
+已改挂到 `SignalRendererMixin`。
+
+**注 2**：写 `BERCtdHold` 时猜错了 CRN 客户端包名（`de.mrjulsen.crn.client.ber.base.*` 全部不存在），
+于是改为复用已编译通过的 `BERCtdPlatform`，先把类型注册进去让它出现，再单独打磨渲染。
