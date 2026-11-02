@@ -3991,3 +3991,40 @@ public class BERPassengerInfoSimple implements AbstractAdvancedDisplayRenderer<P
 
 `ctd_hold` / `ctd_timer` 的 BER 需要按上面这个真实签名重写（我们现有的几个是基于猜测的 API 写的，
 能编译是因为后来改对了包名，但构造签名需要核对）。
+
+### K6-9：扣车由调度系统给出（内核 → API → 显示）
+
+用户明确：**扣车状态由脚本写的调度系统判定**，不是从车次数据推出来的。
+
+已完成：
+
+| 层 | 内容 | 提交 |
+|---|---|---|
+| API | `ctdapi/status/HoldStates`：按 `车站|站台` 记录扣车 | `12fc6ee` |
+| 脚本 SDK | `out.hold(station, platform, held)` | `18e4946` |
+| 依赖 | 重打 `ctdapi` jar 覆盖 `ctdscript/libs/`（**关键**） | 同上 |
+
+内核用法：
+
+```python
+out.hold("北京南", "1", True)     # 扣车
+out.hold("北京南", "1", False)    # 解除
+```
+
+**踩到的坑**：`ctdscript` 依赖的是 `libs/create-train-dispatching-api-0.4.0.jar` 这份本地 jar，
+不是 ctdapi 的源码。加了 `HoldStates` 后编译一直「找不到符号」，`publishToMavenLocal` 无效，
+必须 `gradlew jar` 后手工覆盖 libs 里那份。
+
+### 未完成：扣车状态的跨端传递
+
+`BERCtdHold` 在客户端跑，`HoldStates` 是服务端静态表 → 不共享。
+
+三条候选通道：
+
+| 方案 | 做法 | 评价 |
+|---|---|---|
+| A | 扣车做成自己的方块状态（像 `signal_head` 的 `aspect`） | **推荐**：方块状态同步是被验证过的通道 |
+| B | mixin CRN 显示器 BE，塞进 `getUpdateTag` | 依赖 CRN 内部结构，脆 |
+| C | 并入 `BoardStore` | 取决于它是否已同步 |
+
+下一步按 A 做：服务端写方块状态 → `BERCtdHold` 读状态 → 端到端可用。
