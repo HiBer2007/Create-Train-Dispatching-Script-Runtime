@@ -4163,3 +4163,45 @@ ctdhost: display types registered: ctd_platform / ctd_departure / ctd_timer / ct
 ```
 
 无任何失败行——注册链路完全正常。
+
+### K6-15：显示类型必须**两端**注册（这才是「设置存不住」的根因）
+
+现象：设置界面里填的车站/站台/信号系统，保存后重新打开又是空的。
+
+排查证据（客户端日志）：
+
+```
+ctdhost: settings saved  station=[] platform=[] sys=[ctd:cbtc]   ← 保存时有值
+ctdhost: settings loaded station=[] platform=[] sys=[]           ← 服务端回传就没了
+```
+
+根因：`CtdDisplayTypes.registerAll()` 只在**客户端**执行（外面套了
+`Class.forName("net.minecraft.client.Minecraft")` 的判断）。
+
+服务端要靠这张注册表把 NBT 还原成正确的 Settings 类：
+
+```java
+// AdvancedDisplayBlockEntity.java:756-757
+displayTypeSettings = AdvancedDisplaysRegistry.createSettings(displayTypeId);
+displayTypeSettings.deserializeNbt(pTag.getCompound(NBT_DISPLAY_TYPE_SETTINGS));
+```
+
+服务端没有我们的类型 → `createSettings` 退回 `EmptyDisplaySettings` →
+`serializeNbt` 时不写我们的字段 → 客户端拿到的永远是空。
+
+修复：
+
+1. `CtdHost` 构造期**无条件**调用 `registerAll()`
+2. `CtdDisplayTypes` 里渲染器改为**按类名反射创建**：
+
+```java
+rendererOf("top.hibermod.ctdhost.client.screen.BERCtdPlatform")
+```
+
+这样服务端不会因为常量池引用客户端类而加载失败；`isClient()` 为假时直接返回 `null`。
+3. 模型登记（`CtdPartialModels.bootstrap()`）单独用 `isClient()` 包住。
+
+验证：服务端日志出现 `display types registered: ctd_platform / ctd_departure / ctd_timer / ctd_hold`。
+
+**教训**：凡是「注册表 + 存档」的东西，注册必须两端都有；只在客户端注册会让服务端拿不到类型，
+表现为「保存无效」，而不是报错。
