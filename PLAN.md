@@ -3951,3 +3951,43 @@ public class SemaphoreDisplayTarget extends DisplayTarget { ... }
 
 **注 2**：写 `BERCtdHold` 时猜错了 CRN 客户端包名（`de.mrjulsen.crn.client.ber.base.*` 全部不存在），
 于是改为复用已编译通过的 `BERCtdPlatform`，先把类型注册进去让它出现，再单独打磨渲染。
+
+### K6-8：CRN 原生 BER 的真实接口（读源码确认）
+
+`Create-Train-Navigator/common/.../client/ber/variants/BERPassengerInfoSimple.java`：
+
+```java
+public class BERPassengerInfoSimple implements AbstractAdvancedDisplayRenderer<PassengerInformationScrollingTextSettings> {
+
+    public BERPassengerInfoSimple() {           // ← 无参构造，不是「传入 BE」
+        label.position.set(Point.of(3, 5.5f));
+        label.horizontalScale.set(Pair.of(0.75f, 0.75f));
+        label.horizontalAlign.set(ETextAlignment.CENTER);
+    }
+
+    @Override
+    public void render(BERGraphics<AdvancedDisplayBlockEntity> graphics, float partialTick,
+                       AdvancedDisplayRenderInstance parent, int light, boolean backSide) { ... }
+}
+```
+
+关键事实：
+
+| 项 | 值 |
+|---|---|
+| 包名 | `de.mrjulsen.crn.client.ber.variants.AbstractAdvancedDisplayRenderer` |
+| 渲染签名 | `render(BERGraphics<AdvancedDisplayBlockEntity>, float, AdvancedDisplayRenderInstance, int light, boolean backSide)` |
+| 构造 | **无参**（我们之前写的「传 BE 进构造函数」是错的） |
+| 取数据 | BER 自己从 BE 取；`EUpdateReason` 用于增量刷新 |
+| 标签 | `de.mrjulsen.mcdragonlib.client.ber.BERLabel` |
+
+**结论：显示器自己请求数据。** 所以 `DepartureIndicatorService` 里「往辉光管写文字」
+那套服务端推送机制对新显示类型**完全不必要**——已停用（`tick` 直接返回）。
+
+这也解释了用户的问题「难道不是显示器自己请求数据吗」：是的，正解是 BER 里读 `getStops()`，
+而不是服务端写进来。
+
+### 待办
+
+`ctd_hold` / `ctd_timer` 的 BER 需要按上面这个真实签名重写（我们现有的几个是基于猜测的 API 写的，
+能编译是因为后来改对了包名，但构造签名需要核对）。
