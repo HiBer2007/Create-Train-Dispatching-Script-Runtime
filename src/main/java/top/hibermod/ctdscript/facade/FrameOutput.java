@@ -147,6 +147,17 @@ public final class FrameOutput {
         frame.aspect(new Command.AspectCommand(id, s, aspect));
     }
 
+    /**
+     * 扣车：由调度系统决定某个站台是否扣车。
+     *
+     * <p>扣车不是能从车次数据推出来的量——它是调度员的决定，所以必须显式下发。
+     * 显示件按「车站 + 站台」读取。
+     */
+    @HostAccess.Export
+    public void hold(String station, String platform, boolean held) {
+        top.hibermod.ctdapi.status.HoldStates.put(station, platform, held);
+    }
+
     // ── 岔口 ──────────────────────────────────────────────────────────────
 
     /**
