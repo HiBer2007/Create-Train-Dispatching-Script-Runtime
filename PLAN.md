@@ -4091,3 +4091,36 @@ public class TrackTargetingBlockItem extends BlockItem {                 // :51
 已改为 `CtdSignalItem extends TrackTargetingBlockItem`，边点类型用 `EdgePointType.SIGNAL`。
 
 **这段逻辑同样适用**于将来的其它轨道设备（比如若要做自己的站点/道岔机），一律继承这个 item。
+
+### K6-13：两条把时间烧掉的教训（务必记住）
+
+**1. 客户端日志里的中文不可 grep**
+
+客户端把非 ASCII 写成乱码：
+
+```
+[ctdhost/]: ctdhost: registerAll ��ʼִ�У�registered=false��
+```
+
+我有四五轮用 `客户端注册已调用` / `站台屏类型注册成功` 去 grep 日志，全都匹配不到，
+于是得出「代码没执行」的错误结论，接着改插入位置、加 try/catch、挪到构造最前面——
+**全在追一个假象**。实际上 `registerAll` 一直在正常跑。
+
+> 规则：**关键路径的日志一律用 ASCII 标记**（`head renderer registered` / `failed`），
+> 中文只用于人读的说明。
+
+**2. 构造期不能碰 DeferredHolder**
+
+```
+java.lang.NullPointerException: Trying to access unbound value:
+    ResourceKey[minecraft:block_entity_type / ctdhost:signal_head]
+```
+
+在 `@Mod` 构造期调用 `BlockEntityRenderers.register(CtdBlocks.SIGNAL_HEAD_BE.get(), ...)` 时，
+DeferredHolder 还没绑定。正确做法：
+
+```java
+if (!CtdBlocks.SIGNAL_HEAD_BE.isBound()) return;   // 下次再试，不要标记完成
+```
+
+这两条解释了本会话里最长的两段弯路。
