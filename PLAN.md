@@ -3942,8 +3942,8 @@ public class SemaphoreDisplayTarget extends DisplayTarget { ... }
 | K6-3 | 新增显示类型 `ctd_timer`（正点计时，复用 `BERCtdDeparture`） | ✅ |
 | K6-4 | 新增显示类型 `ctd_hold`（扣车，暂复用 `BERCtdPlatform`） | ✅ |
 | K6-5 | 两个新类型都绑定「车站 ID + 站台 ID」（`CtdPlatformSettings` 的 station/platform 字段） | ✅ |
-| K6-6 | `ctd_hold` 专属渲染（扣车红底大字） | ⏳ |
-| K6-7 | `DepartureIndicatorService` 不再写辉光管，改为写 `ctd_timer` | ⏳ |
+| K6-6 | `ctd_hold` 专属渲染（扣车红底大字） | ✅ `BERCtdHold`，按 CRN 真实签名写 |
+| K6-7 | `DepartureIndicatorService` 不再写辉光管 | ✅ 已停用（显示器自己取数据，不需要推送） |
 
 **注**：先删辉光管 mixin 时踩到一个隐蔽回归——`CtdDisplayTypes.registerAll()`
 原本挂在那个 mixin 的静态初始化里，删掉就没人调用了，站台屏类型会全部消失。
