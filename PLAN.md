@@ -4124,3 +4124,42 @@ if (!CtdBlocks.SIGNAL_HEAD_BE.isBound()) return;   // 下次再试，不要标�
 ```
 
 这两条解释了本会话里最长的两段弯路。
+
+### K6-14：显示类型"看不见"是分类过滤，不是注册失败
+
+`EDisplayType` 枚举：
+
+```
+TRAIN_DESTINATION(0) / PASSENGER_INFORMATION(1) / PLATFORM(2) / DEPARTURE_BOARD(3) / STATIC_TEXT(4)
+```
+
+CRN 自己的站台屏注册在 `PLATFORM`：
+
+```java
+// ModDisplayTypes.java
+EDisplayType.PLATFORM, "running_text"     // :55
+EDisplayType.PLATFORM, "table"            // :59
+EDisplayType.PLATFORM, "focus"            // :63
+EDisplayType.DEPARTURE_BOARD, "table"     // :66
+```
+
+我们的 `ctd_platform` / `ctd_timer` / `ctd_hold` 也注册在 `PLATFORM` —— **分类是对的**。
+
+设置界面取数方式（`AdvancedDisplaySettingsWindow.java:116`）：
+
+```java
+private final Cache<List<DisplayTypeResourceKey>> displayTypes =
+    new Cache<>(() -> AdvancedDisplaysRegistry.getAllOfTypeAsKey(type), ECachingPriority.ALWAYS);
+```
+
+**`type` = 当前分类**。方块当前若属于 `TRAIN_DESTINATION`，列表只显示那一类，
+我们的三个类型不会出现——**把分类切到「站台」页签即可看到**。
+
+### 客户端日志实证（ASCII 标记，最终可用）
+
+```
+ctdhost: registerAll start (registered=false)
+ctdhost: display types registered: ctd_platform / ctd_departure / ctd_timer / ctd_hold
+```
+
+无任何失败行——注册链路完全正常。
