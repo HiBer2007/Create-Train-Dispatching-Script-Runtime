@@ -170,6 +170,14 @@ public final class FrameOutput {
             net.minecraft.resources.ResourceLocation.tryParse(id), argb);
     }
 
+    /**
+     * 请勿上车：调度判定该站台当前不应载客（通过不停站、即将回库等）。
+     */
+    @HostAccess.Export
+    public void noBoarding(String station, String platform, boolean blocked) {
+        top.hibermod.ctdapi.status.NotBoardingStates.put(station, platform, blocked);
+    }
+
     // ── 岔口 ──────────────────────────────────────────────────────────────
 
     /**
