@@ -194,6 +194,14 @@ public final class FrameOutput {
         top.hibermod.ctdapi.status.LoopExits.put(station, platform, exiting);
     }
 
+    /**
+     * 屏蔽门开关状态：驱动屏蔽门挡板的「开启 / 关闭」指示灯。
+     */
+    @HostAccess.Export
+    public void door(String station, String platform, boolean open) {
+        top.hibermod.ctdapi.status.DoorStates.put(station, platform, open);
+    }
+
     // ── 岔口 ──────────────────────────────────────────────────────────────
 
     /**
