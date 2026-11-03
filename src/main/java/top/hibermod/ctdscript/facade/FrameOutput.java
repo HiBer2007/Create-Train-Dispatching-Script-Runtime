@@ -178,6 +178,14 @@ public final class FrameOutput {
         top.hibermod.ctdapi.status.NotBoardingStates.put(station, platform, blocked);
     }
 
+    /**
+     * 发布车站公告：显示在右栏通知区；传空串即清除。
+     */
+    @HostAccess.Export
+    public void announce(String station, String platform, String text) {
+        top.hibermod.ctdapi.status.Announcements.put(station, platform, text);
+    }
+
     // ── 岔口 ──────────────────────────────────────────────────────────────
 
     /**
