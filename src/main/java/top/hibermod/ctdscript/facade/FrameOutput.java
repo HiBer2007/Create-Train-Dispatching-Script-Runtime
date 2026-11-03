@@ -158,6 +158,18 @@ public final class FrameOutput {
         top.hibermod.ctdapi.status.HoldStates.put(station, platform, held);
     }
 
+    /**
+     * 注册线路色号：显示件的顶部色条会用它。
+     *
+     * @param id   形如 {@code ctd:line11}
+     * @param argb 0xAARRGGBB
+     */
+    @HostAccess.Export
+    public void lineColor(String id, int argb) {
+        top.hibermod.ctdapi.display.LineColors.register(
+            net.minecraft.resources.ResourceLocation.tryParse(id), argb);
+    }
+
     // ── 岔口 ──────────────────────────────────────────────────────────────
 
     /**
