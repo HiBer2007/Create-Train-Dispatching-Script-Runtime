@@ -186,6 +186,14 @@ public final class FrameOutput {
         top.hibermod.ctdapi.status.Announcements.put(station, platform, text);
     }
 
+    /**
+     * 环线车即将退出运营：显示件把「内环/外环」换成终点站。
+     */
+    @HostAccess.Export
+    public void loopExit(String station, String platform, boolean exiting) {
+        top.hibermod.ctdapi.status.LoopExits.put(station, platform, exiting);
+    }
+
     // ── 岔口 ──────────────────────────────────────────────────────────────
 
     /**
